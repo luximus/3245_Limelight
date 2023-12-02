@@ -41,32 +41,14 @@ public class Limelight extends SubsystemBase {
     /**
      * Information about a detected target.
      */
-    public class Target {
-
-      /**
-       * Get the ID of the pipeline that detected this target.
-       */
-      public int getPipelineIdOfResult() {
-        return getPipelineId();
-      }
-
-      /**
-       * Get the total latency of this target's measurement.
-       */
-      public double getTotalLatencyOfResult() {
-        return getTotalLatency();
-      }
-
-      public double getCaptureTimestampOfResult() {
-        return getCaptureTimestamp();
-      }
+    public static class Target {
 
     }
 
     /**
      * Information about a detected fiducial.
      */
-    public final class Fiducial extends Target {
+    public static final class Fiducial extends Target {
 
       @JsonProperty("fID")
       private int id;
@@ -105,10 +87,10 @@ public class Limelight extends SubsystemBase {
       /**
        * Get the 2D pose of the robot in field space calculated using this fiducial.
        */
-      public Pose2d getCalculatedRobotPose2dInFieldSpace() throws Full3DTrackingDisabledException {
+      public Pose2d getCalculatedRobotPose2dInFieldSpace() throws Full3DTargetingDisabledException {
         Pose2d pose = arrayToPose2d(calculatedRobotPoseInFieldSpace);
         if (pose == null) {
-          throw new Full3DTrackingDisabledException("Attempted to get robot pose without Full 3D Tracking enabled");
+          throw new Full3DTargetingDisabledException("Attempted to get robot pose without Full 3D Targeting enabled");
         }
         return pose;
       }
@@ -116,10 +98,10 @@ public class Limelight extends SubsystemBase {
       /**
        * Get the 3D pose of the robot in field space calculated using this fiducial.
        */
-      public Pose3d getCalculatedRobotPose3dInFieldSpace() throws Full3DTrackingDisabledException {
+      public Pose3d getCalculatedRobotPose3dInFieldSpace() throws Full3DTargetingDisabledException {
         Pose3d pose = arrayToPose3d(calculatedRobotPoseInFieldSpace);
         if (pose == null) {
-          throw new Full3DTrackingDisabledException("Attempted to get robot pose without Full 3D Tracking enabled");
+          throw new Full3DTargetingDisabledException("Attempted to get robot pose without Full 3D Targeting enabled");
         }
         return pose;
       }
@@ -127,10 +109,10 @@ public class Limelight extends SubsystemBase {
       /**
        * Get the 2D pose of this fiducial in camera space.
        */
-      public Pose2d getPose2dInCameraSpace() throws Full3DTrackingDisabledException {
+      public Pose2d getPose2dInCameraSpace() throws Full3DTargetingDisabledException {
         Pose2d pose = arrayToPose2d(poseInCameraSpace);
         if (pose == null) {
-          throw new Full3DTrackingDisabledException("Attempted to get 3D-derived pose without Full 3D Tracking enabled");
+          throw new Full3DTargetingDisabledException("Attempted to get 3D-derived pose without Full 3D Targeting enabled");
         }
         return pose;
       }
@@ -138,10 +120,10 @@ public class Limelight extends SubsystemBase {
       /**
        * Get the 3D pose of this fiducial in camera space.
        */
-      public Pose3d getPose3dInCameraSpace() throws Full3DTrackingDisabledException {
+      public Pose3d getPose3dInCameraSpace() throws Full3DTargetingDisabledException {
         Pose3d pose = arrayToPose3d(poseInCameraSpace);
         if (pose == null) {
-          throw new Full3DTrackingDisabledException("Attempted to get 3D pose without Full 3D Tracking enabled");
+          throw new Full3DTargetingDisabledException("Attempted to get 3D pose without Full 3D Targeting enabled");
         }
         return pose;
       }
@@ -149,10 +131,10 @@ public class Limelight extends SubsystemBase {
       /**
        * Get the 2D pose of this fiducial in robot space.
        */
-      public Pose2d getPose2dInRobotSpace() throws Full3DTrackingDisabledException {
+      public Pose2d getPose2dInRobotSpace() throws Full3DTargetingDisabledException {
         Pose2d pose = arrayToPose2d(poseInRobotSpace);
         if (pose == null) {
-          throw new Full3DTrackingDisabledException("Attempted to get 3D-derived pose without Full 3D Tracking enabled");
+          throw new Full3DTargetingDisabledException("Attempted to get 3D-derived pose without Full 3D Targeting enabled");
         }
         return pose;
       }
@@ -160,10 +142,10 @@ public class Limelight extends SubsystemBase {
       /**
        * Get the 3D pose of this fiducial in robot space.
        */
-      public Pose3d getPose3dInRobotSpace() throws Full3DTrackingDisabledException {
+      public Pose3d getPose3dInRobotSpace() throws Full3DTargetingDisabledException {
         Pose3d pose = arrayToPose3d(poseInRobotSpace);
         if (pose == null) {
-          throw new Full3DTrackingDisabledException("Attempted to get 3D pose without Full 3D Tracking enabled");
+          throw new Full3DTargetingDisabledException("Attempted to get 3D pose without Full 3D Targeting enabled");
         }
         return pose;
       }
@@ -184,6 +166,9 @@ public class Limelight extends SubsystemBase {
 
     }
 
+    private static final ObjectMapper jsonObjectMapper = new ObjectMapper()
+                                                           .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
     @JsonProperty("pID")
     private int pipeline;
 
@@ -192,9 +177,6 @@ public class Limelight extends SubsystemBase {
 
     @JsonProperty("cl")
     private double captureLatency;
-
-    @JsonProperty("v")
-    private int isValid;
 
     @JsonProperty("botpose")
     private double[] robotPoseInFieldSpace;
@@ -211,6 +193,19 @@ public class Limelight extends SubsystemBase {
     private double parseLatency;
 
     private double captureTimestamp;
+
+    public static Result createFromJson(String json) throws JsonProcessingException {
+      long start = System.nanoTime();
+
+      Result result = jsonObjectMapper.readValue(json, RawResult.class).getResult();
+
+      long end = System.nanoTime();
+      double parseLatency = (end - start) * 1e-6;
+      result.setParseLatency(parseLatency);
+      result.setCaptureTimestampUsingLatencyValues();
+
+      return result;
+    }
 
     private Result() {
       robotPoseInFieldSpace = new double[6];
@@ -255,16 +250,16 @@ public class Limelight extends SubsystemBase {
      * Whether this result has any found targets.
      */
     public boolean hasTargets() {
-      return isValid == 1 ? true : false;
+      return getFoundFiducials().length > 0;
     }
 
     /**
      * The 2D pose of the robot in field space. Will return
-     * Optional.empty() if Full 3D Tracking is not enabled.
+     * Optional.empty() if Full 3D Targeting is not enabled.
      */
     public Pose2d getRobotPose2dInFieldSpace() throws MegaTagDisabledException {
       Pose2d pose = arrayToPose2d(robotPoseInFieldSpace);
-      if (pose == null) {
+      if (pose == null || Arrays.equals(robotPoseInFieldSpace, DOUBLE6_ZERO)) {
         throw new MegaTagDisabledException("Attempted to get robot pose without MegaTag enabled");
       }
       return pose;
@@ -272,11 +267,11 @@ public class Limelight extends SubsystemBase {
 
     /**
      * The 3D pose of the robot in field space. Will return
-     * Optional.empty() if Full 3D Tracking is not enabled.
+     * Optional.empty() if Full 3D Targeting is not enabled.
      */
     public Pose3d getRobotPose3dInFieldSpace() throws MegaTagDisabledException {
       Pose3d pose = arrayToPose3d(robotPoseInFieldSpace);
-      if (pose == null) {
+      if (pose == null || Arrays.equals(robotPoseInFieldSpace, DOUBLE6_ZERO)) {
         throw new MegaTagDisabledException("Attempted to get robot pose without MegaTag enabled");
       }
       return pose;
@@ -295,7 +290,7 @@ public class Limelight extends SubsystemBase {
           throw new NoAllianceException("Attempted to get robot pose from driver station without an alliance set");
       }
 
-      if (pose == null) {
+      if (pose == null || Arrays.equals(robotPoseFromBlueDriverStation, DOUBLE6_ZERO)  || Arrays.equals(robotPoseFromRedDriverStation, DOUBLE6_ZERO)) {
         throw new MegaTagDisabledException("Attempted to get robot pose without MegaTag enabled");
       }
 
@@ -315,7 +310,7 @@ public class Limelight extends SubsystemBase {
           throw new NoAllianceException("Attempted to get robot pose from driver station without an alliance set");
       }
 
-      if (pose == null) {
+      if (pose == null || Arrays.equals(robotPoseFromBlueDriverStation, DOUBLE6_ZERO) || Arrays.equals(robotPoseFromRedDriverStation, DOUBLE6_ZERO)) {
         throw new MegaTagDisabledException("Attempted to get robot pose without MegaTag enabled");
       }
 
@@ -344,15 +339,13 @@ public class Limelight extends SubsystemBase {
   private static final String JSON_SENTINEL = "";
   private static final long INTEGER_SENTINEL = 0;
   private static final double[] DOUBLE6_SENTINEL;
+  private static final double[] DOUBLE6_ZERO = new double[]{0, 0, 0, 0, 0, 0};
 
   static {
     double[] nans6 = new double[6];
     Arrays.fill(nans6, Double.NaN);
     DOUBLE6_SENTINEL = nans6;
   }
-
-  private static final ObjectMapper jsonObjectMapper = new ObjectMapper()
-                                                         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
   private final String name;
 
@@ -389,7 +382,7 @@ public class Limelight extends SubsystemBase {
   public Result getLatestResult() throws JsonProcessingException, IOException {
     long start = System.nanoTime();
 
-    Result result = jsonObjectMapper.readValue(getJsonDump().orElseThrow(() -> new IOException("JSON dump not found")), RawResult.class).getResult();
+    Result result = Result.createFromJson(getJsonDump().orElseThrow(() -> new IOException("JSON dump not found")));
 
     long end = System.nanoTime();
     double parseLatency = (end - start) * 1e-6;
@@ -415,10 +408,10 @@ public class Limelight extends SubsystemBase {
     pipelinePublisher.set(pipeline);
   }
 
-  public Pose3d getCameraPoseInRobotSpace() throws Full3DTrackingDisabledException {
+  public Pose3d getCameraPoseInRobotSpace() throws Full3DTargetingDisabledException {
     Pose3d pose = arrayToPose3d(cameraPoseInRobotSpaceSubscriber.get());
     if (pose == null) {
-      throw new Full3DTrackingDisabledException("Attempted to get camera pose without Full 3D Tracking enabled");
+      throw new Full3DTargetingDisabledException("Attempted to get camera pose without Full 3D Targeting enabled");
     }
 
     return pose;
