@@ -18,6 +18,7 @@ import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.DoubleArrayPublisher;
 import edu.wpi.first.networktables.DoubleArraySubscriber;
 import edu.wpi.first.networktables.IntegerPublisher;
@@ -432,7 +433,7 @@ public class Limelight extends SubsystemBase {
       return null;
     }
 
-    return new Pose2d(poseData[0], poseData[1], new Rotation2d(poseData[5]));
+    return new Pose2d(poseData[0], poseData[1], new Rotation2d(Units.degreesToRadians(poseData[5])));
   }
 
   private static Pose3d arrayToPose3d(double[] poseData) {
@@ -441,7 +442,9 @@ public class Limelight extends SubsystemBase {
     }
 
     return new Pose3d(poseData[0], poseData[1], poseData[2],
-                      new Rotation3d(poseData[3], poseData[4], poseData[5]));
+                      new Rotation3d(Units.degreesToRadians(poseData[3]),
+                                     Units.degreesToRadians(poseData[4]),
+                                     Units.degreesToRadians(poseData[5])));
   }
 
   private static double[] pose3dToArray(Pose3d pose) {
@@ -450,9 +453,9 @@ public class Limelight extends SubsystemBase {
       pose.getX(),
       pose.getY(),
       pose.getZ(),
-      rotation.getX(),
-      rotation.getY(),
-      rotation.getZ()
+      Units.radiansToDegrees(rotation.getX()),
+      Units.radiansToDegrees(rotation.getY()),
+      Units.radiansToDegrees(rotation.getZ())
     };
   }
 
