@@ -56,6 +56,12 @@ public class Limelight extends SubsystemBase {
       @JsonProperty("t6r_fs")
       private double[] calculatedRobotPoseInFieldSpace;
 
+      @JsonProperty("t6r_ts")
+      private double[] calculatedRobotPoseInMySpace;
+
+      @JsonProperty("t6c_ts")
+      private double[] cameraPoseInMySpace;
+
       @JsonProperty("t6t_cs")
       private double[] poseInCameraSpace;
 
@@ -123,6 +129,50 @@ public class Limelight extends SubsystemBase {
         Pose3d pose = arrayToPose3d(calculatedRobotPoseInFieldSpace);
         if (pose == null) {
           throw new Full3DTargetingDisabledException("Attempted to get robot pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * <p>Get the 3D pose of the robot in this fiducial's space.</p>
+       *
+       * <p>Target space info:
+       * <ul>
+       *   <li>origin: The center of the fiducial.</li>
+       *   <li>+X: Rightward when looking straight at the target.</li>
+       *   <li>+Y: Downward when looking straight at the target.</li>
+       *   <li>+Z: Outward orthogonal to the target's plane.</li>
+       * </ul>
+       * </p>
+       *
+       *  @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose3d getCalculatedRobotPose3dInMySpace() throws Full3DTargetingDisabledException {
+        Pose3d pose = arrayToPose3d(calculatedRobotPoseInMySpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get robot pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * <p>Get the 3D pose of the camera in this fiducial's space.</p>
+       *
+       * <p>Target space info:
+       * <ul>
+       *   <li>origin: The center of the fiducial.</li>
+       *   <li>+X: Rightward when looking straight at the target.</li>
+       *   <li>+Y: Downward when looking straight at the target.</li>
+       *   <li>+Z: Outward orthogonal to the target's plane.</li>
+       * </ul>
+       * </p>
+       *
+       *  @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose3d getCameraPose3dInMySpace() throws Full3DTargetingDisabledException {
+        Pose3d pose = arrayToPose3d(cameraPoseInMySpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get camera pose without Full 3D Targeting enabled");
         }
         return pose;
       }

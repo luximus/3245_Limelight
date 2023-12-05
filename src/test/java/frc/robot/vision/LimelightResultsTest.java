@@ -103,7 +103,7 @@ public class LimelightResultsTest {
   }
 
   @Test
-  void getMegaTag2dPose() throws JsonProcessingException, MegaTagDisabledException {
+  void gotExpectedMegaTag2dPose() throws JsonProcessingException, MegaTagDisabledException {
     Limelight.Result result = Limelight.Result.createFromJson(one3dTargetJsonSample);
 
     assertEquals(result.getRobotPose2dInFieldSpace(),
@@ -115,7 +115,7 @@ public class LimelightResultsTest {
   }
 
   @Test
-  void getMegaTag3dPose() throws JsonProcessingException, MegaTagDisabledException {
+  void gotExpectedMegaTag3dPose() throws JsonProcessingException, MegaTagDisabledException {
     Limelight.Result result = Limelight.Result.createFromJson(one3dTargetJsonSample);
 
     assertEquals(result.getRobotPose3dInFieldSpace(),
@@ -126,7 +126,7 @@ public class LimelightResultsTest {
   }
 
   @Test
-  void getFiducialId() throws JsonProcessingException {
+  void gotExpectedFiducialId() throws JsonProcessingException {
     Limelight.Result result = Limelight.Result.createFromJson(one2dTargetJsonSample);
     Fiducial fiducial = result.getFoundFiducials()[0];
 
@@ -134,7 +134,7 @@ public class LimelightResultsTest {
   }
 
   @Test
-  void getFiducialPosition() throws JsonProcessingException {
+  void gotExpectedFiducialPosition() throws JsonProcessingException {
     Limelight.Result result = Limelight.Result.createFromJson(one2dTargetJsonSample);
     Fiducial fiducial = result.getFoundFiducials()[0];
 
@@ -142,7 +142,7 @@ public class LimelightResultsTest {
   }
 
   @Test
-  void getFiducialArea() throws JsonProcessingException {
+  void gotExpectedFiducialArea() throws JsonProcessingException {
     Limelight.Result result = Limelight.Result.createFromJson(one2dTargetJsonSample);
     Fiducial fiducial = result.getFoundFiducials()[0];
 
@@ -158,7 +158,7 @@ public class LimelightResultsTest {
   }
 
   @Test
-  void getFiducial2dPose() throws JsonProcessingException, Full3DTargetingDisabledException {
+  void gotExpectedFiducial2dPose() throws JsonProcessingException, Full3DTargetingDisabledException {
     Limelight.Result result = Limelight.Result.createFromJson(one3dTargetJsonSample);
     Fiducial fiducial = result.getFoundFiducials()[0];
 
@@ -179,7 +179,7 @@ public class LimelightResultsTest {
   }
 
   @Test
-  void getFiducial3dPose() throws JsonProcessingException, Full3DTargetingDisabledException {
+  void gotExpectedFiducial3dPose() throws JsonProcessingException, Full3DTargetingDisabledException {
     Limelight.Result result = Limelight.Result.createFromJson(one3dTargetJsonSample);
     Fiducial fiducial = result.getFoundFiducials()[0];
 
@@ -199,7 +199,7 @@ public class LimelightResultsTest {
   }
 
   @Test
-  void getFiducial2dPoseInRobotSpace() throws JsonProcessingException, Full3DTargetingDisabledException {
+  void gotExpectedFiducial2dPoseInRobotSpace() throws JsonProcessingException, Full3DTargetingDisabledException {
     Limelight.Result result = Limelight.Result.createFromJson(one3dTargetJsonSample);
     Fiducial fiducial = result.getFoundFiducials()[0];
 
@@ -220,7 +220,7 @@ public class LimelightResultsTest {
   }
 
   @Test
-  void getFiducial3dPoseInRobotSpace() throws JsonProcessingException, Full3DTargetingDisabledException {
+  void gotExpectedFiducial3dPoseInRobotSpace() throws JsonProcessingException, Full3DTargetingDisabledException {
     Limelight.Result result = Limelight.Result.createFromJson(one3dTargetJsonSample);
     Fiducial fiducial = result.getFoundFiducials()[0];
 
@@ -229,6 +229,46 @@ public class LimelightResultsTest {
                             new Rotation3d(Units.degreesToRadians(-36.73993499810669),
                                            Units.degreesToRadians(-0.394281999367109),
                                            Units.degreesToRadians(9.432735645196432))));
+  }
+
+  @Test
+  void failGettingCamera3dPoseInTargetSpaceWhenFull3dTargetingDisabled() throws JsonProcessingException {
+    Limelight.Result result = Limelight.Result.createFromJson(one2dTargetJsonSample);
+    Fiducial fiducial = result.getFoundFiducials()[0];
+
+    assertThrows(Full3DTargetingDisabledException.class, fiducial::getCameraPose3dInMySpace);
+  }
+
+  @Test
+  void gotExpectedCamera3dPoseInTargetSpace() throws JsonProcessingException, Full3DTargetingDisabledException {
+    Limelight.Result result = Limelight.Result.createFromJson(one3dTargetJsonSample);
+    Fiducial fiducial = result.getFoundFiducials()[0];
+
+    assertEquals(fiducial.getCameraPose3dInMySpace(),
+                 new Pose3d(0.003792927553466286, 0.4967687355603317, -0.6212917905017659,
+                            new Rotation3d(Units.degreesToRadians(36.325493706358635),
+                                           Units.degreesToRadians(5.939373778660809),
+                                           Units.degreesToRadians(-7.351757590936111))));
+  }
+
+  @Test
+  void failGettingRobot3dPoseInTargetSpaceWhenFull3dTargetingDisabled() throws JsonProcessingException {
+    Limelight.Result result = Limelight.Result.createFromJson(one2dTargetJsonSample);
+    Fiducial fiducial = result.getFoundFiducials()[0];
+
+    assertThrows(Full3DTargetingDisabledException.class, fiducial::getCameraPose3dInMySpace);
+  }
+
+  @Test
+  void gotExpectedRobot3dPoseInTargetSpace() throws JsonProcessingException, Full3DTargetingDisabledException {
+    Limelight.Result result = Limelight.Result.createFromJson(one3dTargetJsonSample);
+    Fiducial fiducial = result.getFoundFiducials()[0];
+
+    assertEquals(fiducial.getCalculatedRobotPose3dInMySpace(),
+                 new Pose3d(0.003792927553466286, 0.4967687355603317, -0.6212917905017659,
+                            new Rotation3d(Units.degreesToRadians(36.325493706358635),
+                                           Units.degreesToRadians(5.939373778660809),
+                                           Units.degreesToRadians(-7.351757590936111))));
   }
 
   @Test
