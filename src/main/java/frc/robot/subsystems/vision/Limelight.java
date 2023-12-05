@@ -272,18 +272,10 @@ public class Limelight extends SubsystemBase {
       }
 
       /**
-       * <p>Get the angle off the set crosshair of the fiducial in the camera view.</p>
-       *
-       * <p>Camera view axis info:
-       * <ul>
-       *   <li>origin: The current position of the crosshair.</li>
-       *   <li>+X: Horizontal, pointing rightward, measured in degrees off the origin.</li>
-       *   <li>+Y: Vertical, pointing upward, measured in degrees off the origin.</li>
-       * </ul>
-       * </p>
+       * Get the angle off the set crosshair of the fiducial in the camera view.
        */
       public Rotation3d getAngleInCameraView() {
-        return new Rotation3d(0, Units.degreesToRadians(xInCamera), Units.degreesToRadians(yInCamera));
+        return new Rotation3d(0, Units.degreesToRadians(yInCamera), -Units.degreesToRadians(xInCamera));
 
       }
 
@@ -500,6 +492,20 @@ public class Limelight extends SubsystemBase {
      */
     public Fiducial[] getFoundFiducials() {
       return fiducials;
+    }
+
+    /**
+     * Get a fiducial, if found, with the given ID. If not found, return {@code null}.
+     * @param id The ID of the fiducial to search for.
+     * @return If found, information about the fiducial with the given id; otherwise {@code null}.
+     */
+    public Fiducial getFiducialWithId(int id) throws FiducialNotDetectedException {
+      for (Fiducial fiducial : fiducials) {
+        if (fiducial.getId() == id) {
+          return fiducial;
+        }
+      }
+      throw new FiducialNotDetectedException("Did not detect fiducial with ID " + id);
     }
 
   }

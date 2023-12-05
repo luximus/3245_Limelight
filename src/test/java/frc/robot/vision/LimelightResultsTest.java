@@ -17,6 +17,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.util.Units;
+import frc.robot.subsystems.vision.FiducialNotDetectedException;
 import frc.robot.subsystems.vision.Full3DTargetingDisabledException;
 import frc.robot.subsystems.vision.Limelight;
 import frc.robot.subsystems.vision.MegaTagDisabledException;
@@ -133,11 +134,28 @@ public class LimelightResultsTest {
   }
 
   @Test
+  void gotExpectedFiducialWhenQueryingId() throws JsonProcessingException, FiducialNotDetectedException {
+    Limelight.Result result = Limelight.Result.createFromJson(two3dTargetsJsonSample);
+
+    Fiducial fiducial = result.getFiducialWithId(0);
+    assertEquals(fiducial.getId(), 0);
+
+    fiducial = result.getFiducialWithId(1);
+    assertEquals(fiducial.getId(), 1);
+  }
+
+  void failGettingFiducialWhenQueryingIdThatWasNotDetected() throws JsonProcessingException {
+    Limelight.Result result = Limelight.Result.createFromJson(one2dTargetJsonSample);
+
+    assertThrows(FiducialNotDetectedException.class, () -> result.getFiducialWithId(2));
+  }
+
+  @Test
   void gotExpectedFiducialPosition() throws JsonProcessingException {
     Limelight.Result result = Limelight.Result.createFromJson(one2dTargetJsonSample);
     Fiducial fiducial = result.getFoundFiducials()[0];
 
-    assertEquals(fiducial.getAngleInCameraView(), new Rotation3d(0, Units.degreesToRadians(-10.46579991906529), Units.degreesToRadians(-9.52471525306504)));
+    assertEquals(fiducial.getAngleInCameraView(), new Rotation3d(0, Units.degreesToRadians(-9.52471525306504), Units.degreesToRadians(10.46579991906529)));
   }
 
   @Test
