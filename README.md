@@ -7,8 +7,6 @@ Team 3245's experiment in computer vision with Limelight.
 This program runs a KitBot with Talon SRX motor controllers connected with a CAN network. Please check the Drivetrain
 subsystem for CAN IDs.
 
-A simple wood block (or whatever) attached to a CIM motor is used to indicate when the Limelight has spotted a target.
-
 ## Limelight API
 
 We've written a wrapper over the NetworkTables and JSON API. The advantage of using JSON dump output is that all
