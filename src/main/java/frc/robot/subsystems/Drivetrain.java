@@ -18,7 +18,7 @@ import frc.robot.Constants.DriveConstants;
 import frc.utils.SwerveUtils;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
-public class DriveSubsystem extends SubsystemBase {
+public class Drivetrain extends SubsystemBase {
   // Create MAXSwerveModules
   private final MAXSwerveModule frontLeftModule = new MAXSwerveModule(
       DriveConstants.kFrontLeftDrivingCanId,
@@ -64,7 +64,7 @@ public class DriveSubsystem extends SubsystemBase {
       });
 
   /** Creates a new DriveSubsystem. */
-  public DriveSubsystem() {
+  public Drivetrain() {
   }
 
   @Override
@@ -137,9 +137,9 @@ public class DriveSubsystem extends SubsystemBase {
 
       double currentTime = WPIUtilJNI.now() * 1e-6;
       double elapsedTime = currentTime - m_prevTime;
-      double angleDif = SwerveUtils.AngleDifference(inputTranslationDir, currentTranslationDir);
+      double angleDif = SwerveUtils.getAngleDifference(inputTranslationDir, currentTranslationDir);
       if (angleDif < 0.45*Math.PI) {
-        currentTranslationDir = SwerveUtils.StepTowardsCircular(currentTranslationDir, inputTranslationDir, directionSlewRate * elapsedTime);
+        currentTranslationDir = SwerveUtils.stepTowardsCircular(currentTranslationDir, inputTranslationDir, directionSlewRate * elapsedTime);
         currentTranslationMag = magLimiter.calculate(inputTranslationMag);
       }
       else if (angleDif > 0.85*Math.PI) {
@@ -148,12 +148,12 @@ public class DriveSubsystem extends SubsystemBase {
           currentTranslationMag = magLimiter.calculate(0.0);
         }
         else {
-          currentTranslationDir = SwerveUtils.WrapAngle(currentTranslationDir + Math.PI);
+          currentTranslationDir = SwerveUtils.wrapAngle(currentTranslationDir + Math.PI);
           currentTranslationMag = magLimiter.calculate(inputTranslationMag);
         }
       }
       else {
-        currentTranslationDir = SwerveUtils.StepTowardsCircular(currentTranslationDir, inputTranslationDir, directionSlewRate * elapsedTime);
+        currentTranslationDir = SwerveUtils.stepTowardsCircular(currentTranslationDir, inputTranslationDir, directionSlewRate * elapsedTime);
         currentTranslationMag = magLimiter.calculate(0.0);
       }
       m_prevTime = currentTime;
