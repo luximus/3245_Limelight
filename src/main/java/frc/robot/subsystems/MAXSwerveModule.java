@@ -4,20 +4,71 @@
 
 package frc.robot.subsystems;
 
+import com.revrobotics.AbsoluteEncoder;
+import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANSparkMax.IdleMode;
+import com.revrobotics.CANSparkMaxLowLevel.MotorType;
+import com.revrobotics.RelativeEncoder;
+import com.revrobotics.SparkMaxAbsoluteEncoder.Type;
+import com.revrobotics.SparkMaxPIDController;
+
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 
-import com.revrobotics.CANSparkMax;
-import com.revrobotics.CANSparkMaxLowLevel.MotorType;
-import com.revrobotics.SparkMaxAbsoluteEncoder.Type;
-import com.revrobotics.SparkMaxPIDController;
-import com.revrobotics.AbsoluteEncoder;
-import com.revrobotics.RelativeEncoder;
-
-import frc.robot.Constants.ModuleConstants;
-
 public class MAXSwerveModule {
+
+  private static final double kFreeSpeedRpm = 5676;
+
+  // The MAXSwerve module can be configured with one of three pinion gears: 12T, 13T, or 14T.
+  // This changes the drive speed of the module (a pinion gear with more teeth will result in a
+  // robot that drives faster).
+  private static final int kDrivingMotorPinionTeeth = 14;
+
+  // Invert the turning encoder, since the output shaft rotates in the opposite direction of
+  // the steering motor in the MAXSwerve Module.
+  private static final boolean kTurningEncoderInverted = true;
+
+  // Calculations required for driving motor conversion factors and feed forward
+  private static final double kDrivingMotorFreeSpeedRps = kFreeSpeedRpm / 60;
+  private static final double kWheelDiameterMeters = 0.0762;
+  private static final double kWheelCircumferenceMeters = kWheelDiameterMeters * Math.PI;
+  // 45 teeth on the wheel's bevel gear, 22 teeth on the first-stage spur gear, 15 teeth on the bevel pinion
+  private static final double kDrivingMotorReduction = (45.0 * 22) / (kDrivingMotorPinionTeeth * 15);
+  private static final double kDriveWheelFreeSpeedRps = (kDrivingMotorFreeSpeedRps * kWheelCircumferenceMeters)
+    / kDrivingMotorReduction;
+
+  private static final double kDrivingEncoderPositionFactor = (kWheelDiameterMeters * Math.PI)
+    / kDrivingMotorReduction; // meters
+  private static final double kDrivingEncoderVelocityFactor = ((kWheelDiameterMeters * Math.PI)
+    / kDrivingMotorReduction) / 60.0; // meters per second
+
+  private static final double kTurningEncoderPositionFactor = (2 * Math.PI); // radians
+  private static final double kTurningEncoderVelocityFactor = (2 * Math.PI) / 60.0; // radians per second
+
+  private static final double kTurningEncoderPositionPIDMinInput = 0; // radians
+  private static final double kTurningEncoderPositionPIDMaxInput = kTurningEncoderPositionFactor; // radians
+
+  private static final double kDrivingP = 0.04;
+  private static final double kDrivingI = 0;
+  private static final double kDrivingD = 0;
+  private static final double kDrivingFF = 1 / kDriveWheelFreeSpeedRps;
+  private static final double kDrivingMinOutput = -1;
+  private static final double kDrivingMaxOutput = 1;
+
+  private static final double kTurningP = 1;
+  private static final double kTurningI = 0;
+  private static final double kTurningD = 0;
+  private static final double kTurningFF = 0;
+  private static final double kTurningMinOutput = -1;
+  private static final double kTurningMaxOutput = 1;
+
+  private static final IdleMode kDrivingMotorIdleMode = IdleMode.kBrake;
+  private static final IdleMode kTurningMotorIdleMode = IdleMode.kBrake;
+
+  private static final int kDrivingMotorCurrentLimit = 50; // amps
+  private static final int kTurningMotorCurrentLimit = 20; // amps
+
   private final CANSparkMax drivingSparkMax;
   private final CANSparkMax turningSparkMax;
 
@@ -56,49 +107,49 @@ public class MAXSwerveModule {
     // Apply position and velocity conversion factors for the driving encoder. The
     // native units for position and velocity are rotations and RPM, respectively,
     // but we want meters and meters per second to use with WPILib's swerve APIs.
-    drivingEncoder.setPositionConversionFactor(ModuleConstants.kDrivingEncoderPositionFactor);
-    drivingEncoder.setVelocityConversionFactor(ModuleConstants.kDrivingEncoderVelocityFactor);
+    drivingEncoder.setPositionConversionFactor(kDrivingEncoderPositionFactor);
+    drivingEncoder.setVelocityConversionFactor(kDrivingEncoderVelocityFactor);
 
     // Apply position and velocity conversion factors for the turning encoder. We
     // want these in radians and radians per second to use with WPILib's swerve
     // APIs.
-    turningEncoder.setPositionConversionFactor(ModuleConstants.kTurningEncoderPositionFactor);
-    turningEncoder.setVelocityConversionFactor(ModuleConstants.kTurningEncoderVelocityFactor);
+    turningEncoder.setPositionConversionFactor(kTurningEncoderPositionFactor);
+    turningEncoder.setVelocityConversionFactor(kTurningEncoderVelocityFactor);
 
     // Invert the turning encoder, since the output shaft rotates in the opposite direction of
     // the steering motor in the MAXSwerve Module.
-    turningEncoder.setInverted(ModuleConstants.kTurningEncoderInverted);
+    turningEncoder.setInverted(kTurningEncoderInverted);
 
     // Enable PID wrap around for the turning motor. This will allow the PID
     // controller to go through 0 to get to the setpoint i.e. going from 350 degrees
     // to 10 degrees will go through 0 rather than the other direction which is a
     // longer route.
     turningPIDController.setPositionPIDWrappingEnabled(true);
-    turningPIDController.setPositionPIDWrappingMinInput(ModuleConstants.kTurningEncoderPositionPIDMinInput);
-    turningPIDController.setPositionPIDWrappingMaxInput(ModuleConstants.kTurningEncoderPositionPIDMaxInput);
+    turningPIDController.setPositionPIDWrappingMinInput(kTurningEncoderPositionPIDMinInput);
+    turningPIDController.setPositionPIDWrappingMaxInput(kTurningEncoderPositionPIDMaxInput);
 
     // Set the PID gains for the driving motor. Note these are example gains, and you
     // may need to tune them for your own robot!
-    drivingPIDController.setP(ModuleConstants.kDrivingP);
-    drivingPIDController.setI(ModuleConstants.kDrivingI);
-    drivingPIDController.setD(ModuleConstants.kDrivingD);
-    drivingPIDController.setFF(ModuleConstants.kDrivingFF);
-    drivingPIDController.setOutputRange(ModuleConstants.kDrivingMinOutput,
-        ModuleConstants.kDrivingMaxOutput);
+    drivingPIDController.setP(kDrivingP);
+    drivingPIDController.setI(kDrivingI);
+    drivingPIDController.setD(kDrivingD);
+    drivingPIDController.setFF(kDrivingFF);
+    drivingPIDController.setOutputRange(kDrivingMinOutput,
+        kDrivingMaxOutput);
 
     // Set the PID gains for the turning motor. Note these are example gains, and you
     // may need to tune them for your own robot!
-    turningPIDController.setP(ModuleConstants.kTurningP);
-    turningPIDController.setI(ModuleConstants.kTurningI);
-    turningPIDController.setD(ModuleConstants.kTurningD);
-    turningPIDController.setFF(ModuleConstants.kTurningFF);
-    turningPIDController.setOutputRange(ModuleConstants.kTurningMinOutput,
-        ModuleConstants.kTurningMaxOutput);
+    turningPIDController.setP(kTurningP);
+    turningPIDController.setI(kTurningI);
+    turningPIDController.setD(kTurningD);
+    turningPIDController.setFF(kTurningFF);
+    turningPIDController.setOutputRange(kTurningMinOutput,
+        kTurningMaxOutput);
 
-    drivingSparkMax.setIdleMode(ModuleConstants.kDrivingMotorIdleMode);
-    turningSparkMax.setIdleMode(ModuleConstants.kTurningMotorIdleMode);
-    drivingSparkMax.setSmartCurrentLimit(ModuleConstants.kDrivingMotorCurrentLimit);
-    turningSparkMax.setSmartCurrentLimit(ModuleConstants.kTurningMotorCurrentLimit);
+    drivingSparkMax.setIdleMode(kDrivingMotorIdleMode);
+    turningSparkMax.setIdleMode(kTurningMotorIdleMode);
+    drivingSparkMax.setSmartCurrentLimit(kDrivingMotorCurrentLimit);
+    turningSparkMax.setSmartCurrentLimit(kTurningMotorCurrentLimit);
 
     // Save the SPARK MAX configurations. If a SPARK MAX browns out during
     // operation, it will maintain the above configurations.
