@@ -33,7 +33,9 @@ public final class Drivetrain extends SubsystemBase {
   /**
    * Create a new Drivetrain.
    */
-  public Drivetrain() {}
+  public Drivetrain() {
+    rightMotors.setInverted(true);
+  }
 
   @Override
   public void periodic() {

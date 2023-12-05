@@ -11,9 +11,9 @@ import frc.robot.subsystems.Drivetrain;
 
 public class DriveArcadeStyle extends CommandBase {
 
-  Drivetrain drivetrain;
-  DoubleSupplier forwardSpeedSupplier, turnSpeedSupplier;
-  double maxSpeed;
+  private Drivetrain drivetrain;
+  private DoubleSupplier forwardSpeedSupplier, turnSpeedSupplier;
+  private double maxSpeed;
 
   /** Creates a new DriveArcadeStyle. */
   public DriveArcadeStyle(Drivetrain drivetrain, DoubleSupplier forwardSpeedSupplier, DoubleSupplier turnSpeedSupplier, double maxSpeed) {
@@ -31,7 +31,7 @@ public class DriveArcadeStyle extends CommandBase {
   // Called every time the scheduler runs while the command is scheduled.
   @Override
   public void execute() {
-    drivetrain.driveArcadeStyle(forwardSpeedSupplier.getAsDouble(), turnSpeedSupplier.getAsDouble());
+    drivetrain.driveArcadeStyle(maxSpeed * forwardSpeedSupplier.getAsDouble(), maxSpeed * turnSpeedSupplier.getAsDouble());
   }
 
   // Called once the command ends or is interrupted.
