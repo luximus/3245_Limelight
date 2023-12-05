@@ -597,7 +597,7 @@ public class Limelight extends SubsystemBase {
   /**
    * Get the name of the Limelight's network table.
    */
-  public String getName() {
+  public String getTableName() {
     return name;
   }
 
