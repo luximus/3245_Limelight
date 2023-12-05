@@ -41,14 +41,44 @@ public class Limelight extends SubsystemBase {
     /**
      * Information about a detected target.
      */
-    public static class Target {
+    public static class Target {}
+
+    /**
+     * Information about a detected target that has position information.
+     */
+    public static class TargetWithPosition extends Target {
+
+      @JsonProperty("ta")
+      private double areaOfImage;
+
+      @JsonProperty("tx")
+      private double xInCamera;
+
+      @JsonProperty("ty")
+      private double yInCamera;
+
+      private TargetWithPosition() {}
+      /**
+       * Get the area of the camera's field of view that this target consumes.
+       */
+      public double getAreaOfImageConsumed() {
+        return areaOfImage;
+      }
+
+      /**
+       * Get the angle off the set crosshair of the target in the camera view.
+       */
+      public Rotation3d getAngleInCameraView() {
+        return new Rotation3d(0, Units.degreesToRadians(yInCamera), -Units.degreesToRadians(xInCamera));
+
+      }
 
     }
 
     /**
      * Information about a detected fiducial.
      */
-    public static final class Fiducial extends Target {
+    public static final class Fiducial extends TargetWithPosition {
 
       @JsonProperty("fID")
       private int id;
@@ -67,15 +97,6 @@ public class Limelight extends SubsystemBase {
 
       @JsonProperty("t6t_rs")
       private double[] poseInRobotSpace;
-
-      @JsonProperty("ta")
-      private double areaOfImage;
-
-      @JsonProperty("tx")
-      private double xInCamera;
-
-      @JsonProperty("ty")
-      private double yInCamera;
 
       private Fiducial() {
         calculatedRobotPoseInFieldSpace = new double[6];
@@ -262,21 +283,6 @@ public class Limelight extends SubsystemBase {
           throw new Full3DTargetingDisabledException("Attempted to get 3D pose without Full 3D Targeting enabled");
         }
         return pose;
-      }
-
-      /**
-       * Get the area of the camera's field of view that this fiducial consumes.
-       */
-      public double getAreaOfImageConsumed() {
-        return areaOfImage;
-      }
-
-      /**
-       * Get the angle off the set crosshair of the fiducial in the camera view.
-       */
-      public Rotation3d getAngleInCameraView() {
-        return new Rotation3d(0, Units.degreesToRadians(yInCamera), -Units.degreesToRadians(xInCamera));
-
       }
 
     }
