@@ -16,7 +16,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation3d;
-import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.util.Units;
 import frc.robot.subsystems.vision.Full3DTargetingDisabledException;
 import frc.robot.subsystems.vision.Limelight;
