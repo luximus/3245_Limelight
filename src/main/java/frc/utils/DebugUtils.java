@@ -2,14 +2,14 @@
 // Open Source Software; you can modify and/or share it under the terms of
 // the WPILib BSD license file in the root directory of this project.
 
-package frc.robot;
+package frc.utils;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation3d;
 
 /** Add your docs here. */
-public final class DebugUtil {
+public final class DebugUtils {
 
   public static String formatToString(Pose2d pose2d) {
     return String.format("(%3.1f, %3.1f) rotated %5.1f deg",

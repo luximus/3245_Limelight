@@ -4,56 +4,119 @@
 
 package frc.robot;
 
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.trajectory.Trajectory;
+import edu.wpi.first.math.trajectory.TrajectoryConfig;
+import edu.wpi.first.math.trajectory.TrajectoryGenerator;
+import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.XboxController.Button;
+import frc.robot.Constants.AutoConstants;
+import frc.robot.Constants.DriveConstants;
+import frc.robot.Constants.OIConstants;
+import frc.robot.subsystems.DriveSubsystem;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
-import frc.robot.commands.DriveArcadeStyle;
-import frc.robot.commands.TurnToFiducialTarget;
-import frc.robot.subsystems.Drivetrain;
-import frc.robot.subsystems.vision.Limelight;
+import edu.wpi.first.wpilibj2.command.RunCommand;
+import edu.wpi.first.wpilibj2.command.SwerveControllerCommand;
+import edu.wpi.first.wpilibj2.command.button.JoystickButton;
+import java.util.List;
 
+/*
+ * This class is where the bulk of the robot should be declared.  Since Command-based is a
+ * "declarative" paradigm, very little robot logic should actually be handled in the {@link Robot}
+ * periodic methods (other than the scheduler calls).  Instead, the structure of the robot
+ * (including subsystems, commands, and button mappings) should be declared here.
+ */
 public class RobotContainer {
+  // The robot's subsystems
+  private final DriveSubsystem drivetrain = new DriveSubsystem();
 
-  private static final String LIMELIGHT_TABLE = "limelight";
+  // The driver's controller
+  XboxController m_driverController = new XboxController(OIConstants.kDriverControllerPort);
 
-  private static final int CONTROLLER_PORT = 0;
-  private static final double TELEOP_MAX_SPEED = 0.85;
-
-  Drivetrain drivetrain = new Drivetrain();
-  Limelight limelight = new Limelight(LIMELIGHT_TABLE);
-
-  CommandXboxController controller = new CommandXboxController(CONTROLLER_PORT);
-
+  /**
+   * The container for the robot. Contains subsystems, OI devices, and commands.
+   */
   public RobotContainer() {
-    configureBindings();
+    // Configure the button bindings
+    configureButtonBindings();
+
+    // Configure default commands
+    drivetrain.setDefaultCommand(
+        // The left stick controls translation of the robot.
+        // Turning is controlled by the X axis of the right stick.
+        new RunCommand(
+            () -> drivetrain.drive(
+                -MathUtil.applyDeadband(m_driverController.getLeftY(), OIConstants.kDriveDeadband),
+                -MathUtil.applyDeadband(m_driverController.getLeftX(), OIConstants.kDriveDeadband),
+                -MathUtil.applyDeadband(m_driverController.getRightX(), OIConstants.kDriveDeadband),
+                true, true),
+            drivetrain));
   }
 
-  private void configureBindings() {
-    drivetrain.setDefaultCommand(getDefaultDriveCommand());
-
-    new Trigger(limelight::seesTarget)
-      .whileTrue(Commands.startEnd(() -> SmartDashboard.putBoolean("Sees target?", true),
-                                   () -> SmartDashboard.putBoolean("Sees target?", false)));
-
-    controller.a()
-      .onTrue(Commands.deadline(Commands.waitSeconds(5),
-                                new TurnToFiducialTarget(drivetrain,
-                                                         limelight,
-                                                         1,
-                                                         0.5,
-                                                         2)));
+  /**
+   * Use this method to define your button->command mappings. Buttons can be
+   * created by
+   * instantiating a {@link edu.wpi.first.wpilibj.GenericHID} or one of its
+   * subclasses ({@link
+   * edu.wpi.first.wpilibj.Joystick} or {@link XboxController}), and then calling
+   * passing it to a
+   * {@link JoystickButton}.
+   */
+  private void configureButtonBindings() {
+    new JoystickButton(m_driverController, Button.kRightBumper.value)
+        .whileTrue(new RunCommand(
+            () -> drivetrain.setX(),
+            drivetrain));
   }
 
-  private Command getDefaultDriveCommand() {
-    return new DriveArcadeStyle(drivetrain,
-                                () -> -controller.getLeftY(),
-                                () -> controller.getRightX(),
-                                TELEOP_MAX_SPEED);
-  }
-
+  /**
+   * Use this to pass the autonomous command to the main {@link Robot} class.
+   *
+   * @return the command to run in autonomous
+   */
   public Command getAutonomousCommand() {
-    return Commands.print("No autonomous command configured");
+    // Create config for trajectory
+    TrajectoryConfig config = new TrajectoryConfig(
+        AutoConstants.kMaxSpeedMetersPerSecond,
+        AutoConstants.kMaxAccelerationMetersPerSecondSquared)
+        // Add kinematics to ensure max speed is actually obeyed
+        .setKinematics(DriveConstants.kDriveKinematics);
+
+    // An example trajectory to follow. All units in meters.
+    Trajectory exampleTrajectory = TrajectoryGenerator.generateTrajectory(
+        // Start at the origin facing the +X direction
+        new Pose2d(0, 0, new Rotation2d(0)),
+        // Pass through these two interior waypoints, making an 's' curve path
+        List.of(new Translation2d(1, 1), new Translation2d(2, -1)),
+        // End 3 meters straight ahead of where we started, facing forward
+        new Pose2d(3, 0, new Rotation2d(0)),
+        config);
+
+    var thetaController = new ProfiledPIDController(
+        AutoConstants.kPThetaController, 0, 0, AutoConstants.kThetaControllerConstraints);
+    thetaController.enableContinuousInput(-Math.PI, Math.PI);
+
+    SwerveControllerCommand swerveControllerCommand = new SwerveControllerCommand(
+        exampleTrajectory,
+        drivetrain::getPose, // Functional interface to feed supplier
+        DriveConstants.kDriveKinematics,
+
+        // Position controllers
+        new PIDController(AutoConstants.kPXController, 0, 0),
+        new PIDController(AutoConstants.kPYController, 0, 0),
+        thetaController,
+        drivetrain::setModuleStates,
+        drivetrain);
+
+    // Reset odometry to the starting pose of the trajectory.
+    drivetrain.resetOdometry(exampleTrajectory.getInitialPose());
+
+    // Run path following command, then stop at the end.
+    return swerveControllerCommand.andThen(() -> drivetrain.drive(0, 0, 0, false, false));
   }
 }
