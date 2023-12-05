@@ -18,7 +18,7 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 
 public class MAXSwerveModule {
 
-  private static final double kFreeSpeedRpm = 5676;
+  private static final double kDrivingMotorFreeSpeedRpm = 5676;
 
   // The MAXSwerve module can be configured with one of three pinion gears: 12T, 13T, or 14T.
   // This changes the drive speed of the module (a pinion gear with more teeth will result in a
@@ -30,7 +30,7 @@ public class MAXSwerveModule {
   private static final boolean kTurningEncoderInverted = true;
 
   // Calculations required for driving motor conversion factors and feed forward
-  private static final double kDrivingMotorFreeSpeedRps = kFreeSpeedRpm / 60;
+  private static final double kDrivingMotorFreeSpeedRps = kDrivingMotorFreeSpeedRpm / 60;
   private static final double kWheelDiameterMeters = 0.0762;
   private static final double kWheelCircumferenceMeters = kWheelDiameterMeters * Math.PI;
   // 45 teeth on the wheel's bevel gear, 22 teeth on the first-stage spur gear, 15 teeth on the bevel pinion
@@ -63,8 +63,7 @@ public class MAXSwerveModule {
   private static final double kTurningMinOutput = -1;
   private static final double kTurningMaxOutput = 1;
 
-  private static final IdleMode kDrivingMotorIdleMode = IdleMode.kBrake;
-  private static final IdleMode kTurningMotorIdleMode = IdleMode.kBrake;
+  private static final IdleMode kDefaultIdleMode = IdleMode.kBrake;
 
   private static final int kDrivingMotorCurrentLimit = 50; // amps
   private static final int kTurningMotorCurrentLimit = 20; // amps
@@ -80,6 +79,8 @@ public class MAXSwerveModule {
 
   private double chassisAngularOffset = 0;
   private SwerveModuleState desiredState = new SwerveModuleState(0.0, new Rotation2d());
+
+  private IdleMode idleMode = kDefaultIdleMode;
 
   /**
    * Constructs a MAXSwerveModule and configures the driving and turning motor,
@@ -146,8 +147,8 @@ public class MAXSwerveModule {
     turningPIDController.setOutputRange(kTurningMinOutput,
         kTurningMaxOutput);
 
-    drivingSparkMax.setIdleMode(kDrivingMotorIdleMode);
-    turningSparkMax.setIdleMode(kTurningMotorIdleMode);
+    drivingSparkMax.setIdleMode(idleMode);
+    turningSparkMax.setIdleMode(idleMode);
     drivingSparkMax.setSmartCurrentLimit(kDrivingMotorCurrentLimit);
     turningSparkMax.setSmartCurrentLimit(kTurningMotorCurrentLimit);
 
@@ -211,5 +212,21 @@ public class MAXSwerveModule {
   /** Zeroes all the SwerveModule encoders. */
   public void resetEncoders() {
     drivingEncoder.setPosition(0);
+  }
+
+  /**
+   * Get the idle mode for this swerve module.
+   */
+  public IdleMode getIdleMode() {
+    return idleMode;
+  }
+
+  /**
+   * Set the idle mode for this swerve module.
+   */
+  public void setIdleMode(IdleMode idleMode) {
+    this.idleMode = idleMode;
+    drivingSparkMax.setIdleMode(idleMode);
+    turningSparkMax.setIdleMode(idleMode);
   }
 }

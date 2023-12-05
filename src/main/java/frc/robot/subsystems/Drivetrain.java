@@ -4,6 +4,8 @@
 
 package frc.robot.subsystems;
 
+import com.revrobotics.CANSparkMax.IdleMode;
+
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -60,6 +62,8 @@ public class Drivetrain extends SubsystemBase {
 
   private static final boolean kGyroReversed = false;
 
+  private static final IdleMode kDefaultIdleMode = IdleMode.kBrake;
+
   // Create MAXSwerveModules
   private final MAXSwerveModule frontLeftModule = new MAXSwerveModule(
       kFrontLeftDrivingCanId,
@@ -93,6 +97,8 @@ public class Drivetrain extends SubsystemBase {
   private SlewRateLimiter rotLimiter = new SlewRateLimiter(kRotationalSlewRate);
   private double m_prevTime = WPIUtilJNI.now() * 1e-6;
 
+  private IdleMode idleMode = kDefaultIdleMode;
+
   // Odometry class for tracking robot pose
   SwerveDriveOdometry odometry = new SwerveDriveOdometry(
       kDriveKinematics,
@@ -106,6 +112,10 @@ public class Drivetrain extends SubsystemBase {
 
   /** Creates a new DriveSubsystem. */
   public Drivetrain() {
+    frontLeftModule.setIdleMode(idleMode);
+    frontRightModule.setIdleMode(idleMode);
+    rearLeftModule.setIdleMode(idleMode);
+    rearRightModule.setIdleMode(idleMode);
   }
 
   @Override
@@ -280,6 +290,25 @@ public class Drivetrain extends SubsystemBase {
    */
   public double getTurnRate() {
     return gyro.getRate() * (kGyroReversed ? -1.0 : 1.0);
+  }
+
+  /**
+   * Get the idle mode for all swerve modules in this drivetrain. If the idle mode of an individual swerve module was
+   * modified, this will not reflect that change.
+   */
+  public IdleMode getIdleMode() {
+    return idleMode;
+  }
+
+  /**
+   * Set the idle mode for all swerve modules in this drivetrain.
+   */
+  public void setIdleMode(IdleMode idleMode) {
+    this.idleMode = idleMode;
+    frontLeftModule.setIdleMode(idleMode);
+    frontRightModule.setIdleMode(idleMode);
+    rearLeftModule.setIdleMode(idleMode);
+    rearRightModule.setIdleMode(idleMode);
   }
 
   public static SwerveDriveKinematics getKinematics() {
