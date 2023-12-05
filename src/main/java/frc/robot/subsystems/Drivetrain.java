@@ -15,19 +15,18 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
  */
 public final class Drivetrain extends SubsystemBase {
 
-  // TODO: CAN network
-  private static final int LEFT_REAR_MOTOR_ID = -1;
-  private static final int LEFT_FRONT_MOTOR_ID = -1;
-  private static final int RIGHT_REAR_MOTOR_ID = -1;
-  private static final int RIGHT_FRONT_MOTOR_ID = -1;
+  private static final int LEFT1_MOTOR_ID = 1;
+  private static final int LEFT2_MOTOR_ID = 7;
+  private static final int RIGHT1_MOTOR_ID = 6;
+  private static final int RIGHT2_MOTOR_ID = 23;
 
-  WPI_TalonSRX leftRearMotor = new WPI_TalonSRX(LEFT_REAR_MOTOR_ID);
-  WPI_TalonSRX leftFrontMotor = new WPI_TalonSRX(LEFT_FRONT_MOTOR_ID);
-  WPI_TalonSRX rightRearMotor = new WPI_TalonSRX(RIGHT_REAR_MOTOR_ID);
-  WPI_TalonSRX rightFrontMotor = new WPI_TalonSRX(RIGHT_FRONT_MOTOR_ID);
+  WPI_TalonSRX left1Motor = new WPI_TalonSRX(LEFT1_MOTOR_ID);
+  WPI_TalonSRX left2Motor = new WPI_TalonSRX(LEFT2_MOTOR_ID);
+  WPI_TalonSRX right1Motor = new WPI_TalonSRX(RIGHT1_MOTOR_ID);
+  WPI_TalonSRX right2Motor = new WPI_TalonSRX(RIGHT2_MOTOR_ID);
 
-  MotorControllerGroup leftMotors = new MotorControllerGroup(leftFrontMotor, leftRearMotor);
-  MotorControllerGroup rightMotors = new MotorControllerGroup(rightFrontMotor, rightRearMotor);
+  MotorControllerGroup leftMotors = new MotorControllerGroup(left2Motor, left1Motor);
+  MotorControllerGroup rightMotors = new MotorControllerGroup(right2Motor, right1Motor);
 
   DifferentialDrive differentialDrive = new DifferentialDrive(leftMotors, rightMotors);
 

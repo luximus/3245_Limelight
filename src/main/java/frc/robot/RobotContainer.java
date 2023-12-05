@@ -13,8 +13,6 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.commands.DriveArcadeStyle;
 import frc.robot.subsystems.Drivetrain;
 import frc.robot.subsystems.SpinnyIndicator;
-// import frc.robot.subsystems.SpinnyIndicator;
-// import frc.robot.subsystems.Vision;
 import frc.robot.subsystems.vision.Limelight;
 
 public class RobotContainer {
@@ -23,8 +21,6 @@ public class RobotContainer {
 
   private static final int CONTROLLER_PORT = 0;
   private static final double TELEOP_MAX_SPEED = 0.85;
-  private static final XboxController.Axis DRIVE_FORWARD_AXIS = XboxController.Axis.kLeftY;
-  private static final XboxController.Axis DRIVE_TURN_AXIS = XboxController.Axis.kRightX;
 
   Drivetrain drivetrain = new Drivetrain();
   Limelight limelight = new Limelight(LIMELIGHT_TABLE);
@@ -37,10 +33,7 @@ public class RobotContainer {
   }
 
   private void configureBindings() {
-    drivetrain.setDefaultCommand(new DriveArcadeStyle(drivetrain,
-                                                      () -> controller.getRawAxis(DRIVE_FORWARD_AXIS.value),
-                                                      () -> controller.getRawAxis(DRIVE_TURN_AXIS.value),
-                                                      TELEOP_MAX_SPEED));
+    drivetrain.setDefaultCommand(getDefaultDriveCommand());
   }
 
   private Command getDefaultDriveCommand() {

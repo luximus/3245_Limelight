@@ -4,489 +4,685 @@
 
 package frc.robot.subsystems.vision;
 
+import java.io.IOException;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.Optional;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
-import edu.wpi.first.math.geometry.Translation3d;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.DoubleArrayPublisher;
 import edu.wpi.first.networktables.DoubleArraySubscriber;
-import edu.wpi.first.networktables.DoubleSubscriber;
-import edu.wpi.first.networktables.IntegerEntry;
+import edu.wpi.first.networktables.IntegerPublisher;
 import edu.wpi.first.networktables.IntegerSubscriber;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.StringSubscriber;
 import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.DebugUtil;
 
 /** An interface to a Limelight camera. */
 public class Limelight extends SubsystemBase {
-  public enum SmartDashboardPublishing {
-    TARGET_2D, TARGET_3D, CAMERA_POSE, ROBOT_POSE
+
+  /**
+   * Results of a image-processing pipeline run on a Limelight. A result is calculated from a single snapshot, so
+   * information contained in a {@code Result} will be from the same instant in time.
+   */
+  public static final class Result {
+
+    /**
+     * Information about a detected target.
+     */
+    public static class Target {
+
+    }
+
+    /**
+     * Information about a detected fiducial.
+     */
+    public static final class Fiducial extends Target {
+
+      @JsonProperty("fID")
+      private int id;
+
+      @JsonProperty("t6r_fs")
+      private double[] calculatedRobotPoseInFieldSpace;
+
+      @JsonProperty("t6r_ts")
+      private double[] calculatedRobotPoseInMySpace;
+
+      @JsonProperty("t6c_ts")
+      private double[] cameraPoseInMySpace;
+
+      @JsonProperty("t6t_cs")
+      private double[] poseInCameraSpace;
+
+      @JsonProperty("t6t_rs")
+      private double[] poseInRobotSpace;
+
+      @JsonProperty("ta")
+      private double areaOfImage;
+
+      @JsonProperty("tx")
+      private double xInCamera;
+
+      @JsonProperty("ty")
+      private double yInCamera;
+
+      private Fiducial() {
+        calculatedRobotPoseInFieldSpace = new double[6];
+        poseInCameraSpace = new double[6];
+        poseInRobotSpace = new double[6];
+      }
+
+      /**
+       * Get the ID of the fiducial.
+       */
+      public int getId() {
+        return id;
+      }
+
+      /**
+       * <p>Get the 2D pose of the robot in field space calculated using this fiducial.</p>
+       *
+       * <p>Field space info:
+       * <ul>
+       *   <li>origin: The center of the field.</li>
+       *   <li>+X: Rightward along the long side of the field.</li>
+       *   <li>+Y: Upward along the short side of the field.</li>
+       * </ul>
+       * </p>
+       *
+       * @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose2d getCalculatedRobotPose2dInFieldSpace() throws Full3DTargetingDisabledException {
+        Pose2d pose = arrayToPose2d(calculatedRobotPoseInFieldSpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get robot pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * <p>Get the 3D pose of the robot in field space calculated using this fiducial.</p>
+       *
+       * <p>Field space info:
+       * <ul>
+       *   <li>origin: The center of the field.</li>
+       *   <li>+X: Rightward along the long side of the field.</li>
+       *   <li>+Y: Upward along the short side of the field.</li>
+       *   <li>+Z: Upward orthogonal to the field's surface.</li>
+       * </ul>
+       * </p>
+       *
+       *  @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose3d getCalculatedRobotPose3dInFieldSpace() throws Full3DTargetingDisabledException {
+        Pose3d pose = arrayToPose3d(calculatedRobotPoseInFieldSpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get robot pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * <p>Get the 3D pose of the robot in this fiducial's space.</p>
+       *
+       * <p>Target space info:
+       * <ul>
+       *   <li>origin: The center of the fiducial.</li>
+       *   <li>+X: Rightward when looking straight at the target.</li>
+       *   <li>+Y: Downward when looking straight at the target.</li>
+       *   <li>+Z: Outward orthogonal to the target's plane.</li>
+       * </ul>
+       * </p>
+       *
+       *  @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose3d getCalculatedRobotPose3dInMySpace() throws Full3DTargetingDisabledException {
+        Pose3d pose = arrayToPose3d(calculatedRobotPoseInMySpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get robot pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * <p>Get the 3D pose of the camera in this fiducial's space.</p>
+       *
+       * <p>Target space info:
+       * <ul>
+       *   <li>origin: The center of the fiducial.</li>
+       *   <li>+X: Rightward when looking straight at the target.</li>
+       *   <li>+Y: Downward when looking straight at the target.</li>
+       *   <li>+Z: Outward orthogonal to the target's plane.</li>
+       * </ul>
+       * </p>
+       *
+       *  @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose3d getCameraPose3dInMySpace() throws Full3DTargetingDisabledException {
+        Pose3d pose = arrayToPose3d(cameraPoseInMySpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get camera pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * <p>Get the 2D pose of this fiducial in camera space.</p>
+       *
+       * <p>Camera space info:
+       * <ul>
+       *   <li>origin: The camera lens.</li>
+       *   <li>+X: Rightward when seen from the camera's view.</li>
+       *   <li>+Y: Upward when seen from the camera's view.</li>
+       * </ul>
+       * </p>
+       *
+       * @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose2d getPose2dInCameraSpace() throws Full3DTargetingDisabledException {
+        Pose2d pose = arrayToPose2d(poseInCameraSpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get 3D-derived pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * <p>Get the 3D pose of this fiducial in camera space.</p>
+       *
+       * <p>Camera space info:
+       * <ul>
+       *   <li>origin: The camera lens.</li>
+       *   <li>+X: Rightward when seen from the camera's view.</li>
+       *   <li>+Y: Upward when seen from the camera's view.</li>
+       *   <li>+Z: Directly forward orthogonal to the camera's front surface.</li>
+       * </ul>
+       * </p>
+       *
+       *  @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose3d getPose3dInCameraSpace() throws Full3DTargetingDisabledException {
+        Pose3d pose = arrayToPose3d(poseInCameraSpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get 3D pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * <p>Get the 2D pose of this fiducial in robot space.</p>
+       *
+       * <p>Robot space info:
+       * <ul>
+       *   <li>origin: The center of the robot.</li>
+       *   <li>+X: Forward as perceived by the robot.</li>
+       *   <li>+Y: Rightward as perceived by the robot.</li>
+       * </ul>
+       * </p>
+       *
+       * @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose2d getPose2dInRobotSpace() throws Full3DTargetingDisabledException {
+        Pose2d pose = arrayToPose2d(poseInRobotSpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get 3D-derived pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * <p>Get the 3D pose of this fiducial in robot space.</p>
+       *
+       * <p>Robot space info:
+       * <ul>
+       *   <li>origin: The center of the robot.</li>
+       *   <li>+X: Forward as perceived by the robot.</li>
+       *   <li>+Y: Rightward as perceived by the robot.</li>
+       *   <li>+Z: Upward as perceived by the robot. If the robot is on a slanted surface, this will not be orthogonal
+       *       to the field's surface.</li>
+       * </ul>
+       * </p>
+       *
+       * @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
+       */
+      public Pose3d getPose3dInRobotSpace() throws Full3DTargetingDisabledException {
+        Pose3d pose = arrayToPose3d(poseInRobotSpace);
+        if (pose == null) {
+          throw new Full3DTargetingDisabledException("Attempted to get 3D pose without Full 3D Targeting enabled");
+        }
+        return pose;
+      }
+
+      /**
+       * Get the area of the camera's field of view that this fiducial consumes.
+       */
+      public double getAreaOfImageConsumed() {
+        return areaOfImage;
+      }
+
+      /**
+       * <p>Get the angle off the set crosshair of the fiducial in the camera view.</p>
+       *
+       * <p>Camera view axis info:
+       * <ul>
+       *   <li>origin: The current position of the crosshair.</li>
+       *   <li>+X: Horizontal, pointing rightward, measured in degrees off the origin.</li>
+       *   <li>+Y: Vertical, pointing upward, measured in degrees off the origin.</li>
+       * </ul>
+       * </p>
+       */
+      public Rotation3d getAngleInCameraView() {
+        return new Rotation3d(0, Units.degreesToRadians(xInCamera), Units.degreesToRadians(yInCamera));
+
+      }
+
+    }
+
+    private static final ObjectMapper jsonObjectMapper = new ObjectMapper()
+                                                           .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+    @JsonProperty("pID")
+    private int pipeline;
+
+    @JsonProperty("tl")
+    private double targetingLatency;
+
+    @JsonProperty("cl")
+    private double captureLatency;
+
+    @JsonProperty("botpose")
+    private double[] robotPoseInFieldSpace;
+
+    @JsonProperty("botpose_wpired")
+    private double[] robotPoseFromRedDriverStation;
+
+    @JsonProperty("botpose_wpiblue")
+    private double[] robotPoseFromBlueDriverStation;
+
+    @JsonProperty("Fiducial")
+    private Fiducial[] fiducials;
+
+    private double parseLatency;
+
+    private double captureTimestamp;
+
+    /**
+     * Create a new {@code Result} from a JSON object.
+     *
+     * @param json The JSON object.
+     * @return A {@code Result} containing the information in the JSON object.
+     * @throws JsonProcessingException The given JSON was invalid.
+     */
+    public static Result createFromJson(String json) throws JsonProcessingException {
+      long start = System.nanoTime();
+
+      Result result = jsonObjectMapper.readValue(json, RawResult.class).getResult();
+
+      long end = System.nanoTime();
+      double parseLatency = (end - start) * 1e-6;
+      result.setParseLatency(parseLatency);
+      result.setCaptureTimestampUsingLatencyValues();
+
+      return result;
+    }
+
+    private Result() {
+      robotPoseInFieldSpace = new double[6];
+      robotPoseFromRedDriverStation = new double[6];
+      robotPoseFromBlueDriverStation = new double[6];
+    }
+
+    /**
+     * Get the ID of the pipeline that captured this result.
+     */
+    public int getPipelineId() {
+      return pipeline;
+    }
+
+    /**
+     * Get the total latency of this result.
+     */
+    public double getTotalLatency() {
+      return targetingLatency + captureLatency + parseLatency;
+    }
+
+    /**
+     * Get the time at which this result was captured relative to when the robot started running. This can be used
+     * with WPILib's pose estimators such as {@link edu.wpi.first.math.estimator.DifferentialDrivePoseEstimator}
+     * when specifying the time stamp for vision measurements.
+     */
+    public double getCaptureTimestamp() {
+      return captureTimestamp;
+    }
+
+    private void setCaptureTimestampUsingLatencyValues() {
+      captureTimestamp = Timer.getFPGATimestamp() - (getTotalLatency() / 1000);
+    }
+
+    private void setParseLatency(double latency) {
+      parseLatency = latency;
+    }
+
+    /**
+     * Whether this result has any found targets.
+     */
+    public boolean hasTargets() {
+      return getFoundFiducials().length > 0;
+    }
+
+    /**
+     * <p>Get the 2D pose of the robot in field space calculated using all available fiducials.</p>
+     *
+     * <p>Field space info:
+     * <ul>
+     *   <li>origin: The center of the field.</li>
+     *   <li>+X: Rightward along the long side of the field.</li>
+     *   <li>+Y: Upward along the short side of the field.</li>
+     * </ul>
+     * </p>
+     *
+     * @throws MegaTagDisabledException MegaTag was disabled when obtaining this result.
+     */
+    public Pose2d getRobotPose2dInFieldSpace() throws MegaTagDisabledException {
+      Pose2d pose = arrayToPose2d(robotPoseInFieldSpace);
+      if (pose == null || Arrays.equals(robotPoseInFieldSpace, DOUBLE6_ZERO)) {
+        throw new MegaTagDisabledException("Attempted to get robot pose without MegaTag enabled");
+      }
+      return pose;
+    }
+
+    /**
+     * <p>Get the 3D pose of the robot in field space calculated using all available fiducials.</p>
+     *
+     * <p>Field space info:
+     * <ul>
+     *   <li>origin: The center of the field.</li>
+     *   <li>+X: Rightward along the long side of the field.</li>
+     *   <li>+Y: Upward along the short side of the field.</li>
+     *   <li>+Z: Upward orthogonal to the field's surface.</li>
+     * </ul>
+     * </p>
+     *
+     * @throws MegaTagDisabledException MegaTag was disabled when obtaining this result.
+     */
+    public Pose3d getRobotPose3dInFieldSpace() throws MegaTagDisabledException {
+      Pose3d pose = arrayToPose3d(robotPoseInFieldSpace);
+      if (pose == null || Arrays.equals(robotPoseInFieldSpace, DOUBLE6_ZERO)) {
+        throw new MegaTagDisabledException("Attempted to get robot pose without MegaTag enabled");
+      }
+      return pose;
+    }
+
+    /**
+     * <p>Get the 2D pose of the robot in field space oriented from the view of the current alliance's driver stations
+     * calculated using all available fiducials.</p>
+     *
+     * <p>Field space info:
+     * <ul>
+     *   <li>origin: The center of the field.</li>
+     *   <li>+X: Rightward along the side of the field parallel to the driver station lineup.</li>
+     *   <li>+Y: Away from the driver stations, perpendicular to their lineup.</li>
+     * </ul>
+     * </p>
+     *
+     * @throws MegaTagDisabledException MegaTag was disabled when obtaining this result.
+     * @throws NoAllianceException This robot is not currently on an alliance.
+     */
+    public Pose2d getRobotPose2dFromDriverStation() throws MegaTagDisabledException, NoAllianceException {
+      Pose2d pose;
+      switch (DriverStation.getAlliance()) {
+        case Red:
+          pose = arrayToPose2d(robotPoseFromRedDriverStation);
+          break;
+        case Blue:
+          pose = arrayToPose2d(robotPoseFromBlueDriverStation);
+          break;
+        default:
+          throw new NoAllianceException("Attempted to get robot pose from driver station without an alliance set");
+      }
+
+      if (pose == null || Arrays.equals(robotPoseFromBlueDriverStation, DOUBLE6_ZERO)  || Arrays.equals(robotPoseFromRedDriverStation, DOUBLE6_ZERO)) {
+        throw new MegaTagDisabledException("Attempted to get robot pose without MegaTag enabled");
+      }
+
+      return pose;
+    }
+
+    /**
+     * <p>Get the 3D pose of the robot in field space oriented from the view of the current alliance's driver stations
+     * calculated using all available fiducials.</p>
+     *
+     * <p>Field space info:
+     * <ul>
+     *   <li>origin: The center of the field.</li>
+     *   <li>+X: Rightward along the side of the field parallel to the driver station lineup.</li>
+     *   <li>+Y: Away from the driver stations, perpendicular to their lineup.</li>
+     *   <li>+Z: Upward orthogonal to the field's surface.</li>
+     * </ul>
+     * </p>
+     *
+     * @throws MegaTagDisabledException MegaTag was disabled when obtaining this result.
+     * @throws NoAllianceException This robot is not currently on an alliance.
+     */
+    public Pose3d getRobotPose3dFromDriverStation() throws MegaTagDisabledException, NoAllianceException {
+      Pose3d pose;
+      switch (DriverStation.getAlliance()) {
+        case Red:
+          pose = arrayToPose3d(robotPoseFromRedDriverStation);
+          break;
+        case Blue:
+          pose = arrayToPose3d(robotPoseFromBlueDriverStation);
+          break;
+        default:
+          throw new NoAllianceException("Attempted to get robot pose from driver station without an alliance set");
+      }
+
+      if (pose == null || Arrays.equals(robotPoseFromBlueDriverStation, DOUBLE6_ZERO) || Arrays.equals(robotPoseFromRedDriverStation, DOUBLE6_ZERO)) {
+        throw new MegaTagDisabledException("Attempted to get robot pose without MegaTag enabled");
+      }
+
+      return pose;
+    }
+
+    /**
+     * Get all fiducials detected in the camera view.
+     */
+    public Fiducial[] getFoundFiducials() {
+      return fiducials;
+    }
+
   }
-  private static final long LONG_SENTINEL = -1;
-  private static final double DOUBLE_SENTINEL = Double.NaN;
+
+  private static final class RawResult {
+    @JsonProperty("Results")
+    private Result result;
+
+    private RawResult() {
+      result = new Result();
+    }
+
+    private Result getResult() {
+      return result;
+    }
+  }
+
+  private static final String JSON_SENTINEL = "";
+  private static final long INTEGER_SENTINEL = 0;
   private static final double[] DOUBLE6_SENTINEL;
-  private static final double[] DOUBLE7_SENTINEL;
+  private static final double[] DOUBLE6_ZERO = new double[]{0, 0, 0, 0, 0, 0};
 
   static {
     double[] nans6 = new double[6];
-    double[] nans7 = new double[7];
-    Arrays.fill(nans6, DOUBLE_SENTINEL);
-    Arrays.fill(nans7, DOUBLE_SENTINEL);
+    Arrays.fill(nans6, Double.NaN);
     DOUBLE6_SENTINEL = nans6;
-    DOUBLE7_SENTINEL = nans7;
   }
 
-  private final NetworkTable netTable;
+  private final String name;
 
-  private IntegerSubscriber tidSubscriber;
-  private DoubleSubscriber txSubscriber, tySubscriber, taSubscriber;
-  private DoubleArraySubscriber targetPoseInCameraSpaceSubscriber, targetPoseInRobotSpaceSubscriber;
-  private DoubleArraySubscriber robotPoseInFieldSpaceSubscriber, robotPoseInDriverStationSpaceSubscriber;
+  private StringSubscriber jsonDataSubscriber;
+
+  private IntegerSubscriber pipelineSubscriber;
+  private IntegerPublisher pipelinePublisher;
+
   private DoubleArraySubscriber cameraPoseInRobotSpaceSubscriber;
-  private DoubleSubscriber tlSubscriber, clSubscriber;
-
   private DoubleArrayPublisher cameraPoseInRobotSpacePublisher;
 
-  private IntegerEntry pipelineEntry;
+  private IntegerSubscriber hasTargetSubscriber;
 
-  private final EnumSet<SmartDashboardPublishing> publishingOptions;
+  /**
+   * Create a new Limelight interface.
+   * @param name The name of the Limelight's network table.
+   */
+  public Limelight(String name) {
+    this.name = name;
+    NetworkTable netTable = NetworkTableInstance.getDefault().getTable(name);
 
-  public Limelight(String tableName, SmartDashboardPublishing... publishingOptions) {
-    netTable = NetworkTableInstance.getDefault().getTable(tableName);
+    jsonDataSubscriber = netTable.getStringTopic("json").subscribe(JSON_SENTINEL);
 
-    tidSubscriber = netTable.getIntegerTopic("tid").subscribe(LONG_SENTINEL);
-
-    txSubscriber = netTable.getDoubleTopic("tx").subscribe(DOUBLE_SENTINEL);
-    tySubscriber = netTable.getDoubleTopic("ty").subscribe(DOUBLE_SENTINEL);
-    taSubscriber = netTable.getDoubleTopic("ta").subscribe(DOUBLE_SENTINEL);
-
-    targetPoseInCameraSpaceSubscriber = netTable.getDoubleArrayTopic("targetpose_cameraspace").subscribe(DOUBLE6_SENTINEL);
-    targetPoseInRobotSpaceSubscriber = netTable.getDoubleArrayTopic("targetpose_robotspace").subscribe(DOUBLE6_SENTINEL);
-
-    robotPoseInFieldSpaceSubscriber = netTable.getDoubleArrayTopic("botpose").subscribe(DOUBLE7_SENTINEL);
-    initRobotPoseInDriverStationSpaceSubscriber();
+    pipelineSubscriber = netTable.getIntegerTopic("getpipe").subscribe(INTEGER_SENTINEL);
+    pipelinePublisher = netTable.getIntegerTopic("pipeline").publish();
 
     cameraPoseInRobotSpaceSubscriber = netTable.getDoubleArrayTopic("camerapose_robotspace").subscribe(DOUBLE6_SENTINEL);
-
-    tlSubscriber = netTable.getDoubleTopic("tl").subscribe(DOUBLE_SENTINEL);
-    clSubscriber = netTable.getDoubleTopic("cl").subscribe(DOUBLE_SENTINEL);
-
     cameraPoseInRobotSpacePublisher = netTable.getDoubleArrayTopic("camerapose_robotspace_set").publish();
 
-    pipelineEntry = netTable.getIntegerTopic("pipeline").getEntry(LONG_SENTINEL);
-
-    this.publishingOptions = EnumSet.copyOf(Arrays.asList(publishingOptions));
+    hasTargetSubscriber = netTable.getIntegerTopic("tv").subscribe(INTEGER_SENTINEL);
   }
 
-  private boolean initRobotPoseInDriverStationSpaceSubscriber() {
-    switch (DriverStation.getAlliance()) {
-      case Blue:
-        robotPoseInDriverStationSpaceSubscriber = netTable.getDoubleArrayTopic("botpose_wpiblue").subscribe(DOUBLE7_SENTINEL);
-        return true;
-      case Red:
-        robotPoseInDriverStationSpaceSubscriber = netTable.getDoubleArrayTopic("botpose_wpired").subscribe(DOUBLE7_SENTINEL);
-        return true;
-      default:
-        robotPoseInDriverStationSpaceSubscriber = null;
-        return false;
-    }
+  private Optional<String> getJsonDump() {
+    String dump = jsonDataSubscriber.get();
+    return dump.equals(JSON_SENTINEL) ? Optional.empty() : Optional.of(dump);
   }
 
   /**
-   * Get information about the current Limelight target in the camera's view.
-   * @return a {@link TargetInfo2D} containing target information wrapped in an optional
+   * Get the result from the most recently processed camera frame.
+   * @throws JsonProcessingException The provided JSON was invalid.
+   * @throws IOException The JSON dump could not be found.
    */
-  public Optional<TargetInfo2D> getCurrent2DTargetInfo() {
-    var tagID = getAprilTagID();
-    var targetPose = getTargetPose2DInCamera();
-    var targetArea = getTargetAreaInCamera();
-    if (tagID.isPresent() && targetPose.isPresent() && targetArea.isPresent()) {
-      return Optional.of(new TargetInfo2D(tagID.get(), targetPose.get(), targetArea.get()));
-    } else {
-      return Optional.empty();
-    }
+  public Result getLatestResult() throws JsonProcessingException, IOException {
+    long start = System.nanoTime();
+
+    Result result = Result.createFromJson(getJsonDump().orElseThrow(() -> new IOException("JSON dump not found")));
+
+    long end = System.nanoTime();
+    double parseLatency = (end - start) * 1e-6;
+    result.setParseLatency(parseLatency);
+    result.setCaptureTimestampUsingLatencyValues();
+
+    return result;
   }
 
   /**
-   * Get information about the current Limelight target in three-dimensional space.
-   * @return a {@link TargetInfo3D} containing target information wrapped in an optional
+   * Get the name of the Limelight's network table.
    */
-  public Optional<TargetInfo3D> getCurrent3DTargetInfo() {
-    var tagID = getAprilTagID();
-    var cameraPose = getTargetPose3DInCameraSpace();
-    var robotPose = getTargetPose3DInRobotSpace();
-    if (tagID.isPresent() && cameraPose.isPresent()) {
-      if (robotPose.isPresent()) {
-        return Optional.of(new TargetInfo3D(tagID.get(), cameraPose.get(), robotPose.get()));
-      } else {
-        return Optional.of(new TargetInfo3D(tagID.get(), cameraPose.get()));
-      }
-    } else {
-      return Optional.empty();
-    }
+  public String getName() {
+    return name;
   }
 
   /**
-   * Whether the Limelight currently sees a target.
-   * @return true if the Limelight sees the target
+   * Returns {@code true} if the Limelight currently sees a target.
    */
   public boolean seesTarget() {
-    return getEntryIfPopulated(tidSubscriber).isPresent();
+    return hasTargetSubscriber.get() == 1 ? true : false;
   }
 
   /**
-   * The ID of the AprilTag currently seen by the Limelight.
-   * @return ID of the AprilTag currently seen, or else Optional.empty()
+   * Get the index of the currently active pipeline.
    */
-  public Optional<Long> getAprilTagID() {
-    return getEntryIfPopulated(tidSubscriber);
-  }
-
-  /**
-   * The current pose of the target in the camera reference frame. Rotation information is not
-   * calculated due to a limitation of the algorithm.
-   *
-   * Camera's view:
-   *   X+: rightward
-   *   Y+: downward
-   *   origin: center of camera view
-   * @return current pose of the target in the camera's frame, or else Optional.empty()
-   */
-  public Optional<Pose2d> getTargetPose2DInCamera() {
-    Optional<Double> targetX = getEntryIfPopulated(txSubscriber);
-    Optional<Double> targetY = getEntryIfPopulated(tySubscriber);
-    if (targetX.isPresent() && targetY.isPresent()) {
-      return Optional.of(new Pose2d(targetX.get(), targetY.get(), new Rotation2d()));
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  /**
-   * The area the target consumes in the camera view.
-   * @return the area the target consumes in the camera view, or else Optional.empty()
-   */
-  public Optional<Double> getTargetAreaInCamera() {
-    return getEntryIfPopulated(taSubscriber);
-  }
-
-  /**
-   * The three-dimensional pose of the target in the camera's reference frame. This will return
-   * Optional.empty() if the current pipeline is not configured to use 3D tracking.
-   *
-   * Camera's reference frame:
-   *   X+: rightward
-   *   Y+: downward
-   *   Z+: forward
-   *   origin: center of camera
-   * @return Pose3d of target in camera's frame, or else Optional.empty()
-   */
-  public Optional<Pose3d> getTargetPose3DInCameraSpace() {
-    Optional<double[]> result = getEntryIfPopulated(targetPoseInCameraSpaceSubscriber);
-    if (result.isPresent()) {
-      return Optional.of(getPose3dFromTransformArray(result.get()));
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  /**
-   * The three-dimensional pose of the target in the robot's reference frame. This will return
-   * Optional.empty() if the current pipeline is not configured to use 3D tracking.
-   *
-   * Robot's reference frame:
-   *   X+: forward
-   *   Y+: rightward
-   *   Z+: upward, towards the sky
-   *   origin: center of the robot
-   * @return Pose3d of target in robot's frame, or else Optional.empty()
-   */
-  public Optional<Pose3d> getTargetPose3DInRobotSpace() {
-    Optional<double[]> result = getEntryIfPopulated(targetPoseInRobotSpaceSubscriber);
-    if (result.isPresent()) {
-      return Optional.of(getPose3dFromTransformArray(result.get()));
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  /**
-   * The two-dimensional pose of the robot in the field's reference frame. This will return
-   * Optional.empty() if the current pipeline is not configured to use 3D tracking.
-   *
-   * Field's reference frame:
-   *   X+: long edge
-   *   Y+: short edge
-   *   origin: center of the field
-   * @return Pose2d of robot in field's frame, or else Optional.empty()
-   */
-  public Optional<Pose2d> getRobotPose2DInFieldSpace() {
-    Optional<double[]> result = getEntryIfPopulated(robotPoseInFieldSpaceSubscriber);
-    if (result.isPresent()) {
-      return Optional.of(getPose3dFromTransformArray(result.get()).toPose2d());
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  /**
-   * The three-dimensional pose of the robot in the field's reference frame. This will return
-   * Optional.empty() if the current pipeline is not configured to use 3D tracking.
-   *
-   * Field's reference frame:
-   *   X+: long edge
-   *   Y+: short edge
-   *   Z+: up, towards the sky
-   *   origin: center of the field
-   * @return Pose3d of robot in field's frame, or else Optional.empty()
-   */
-  public Optional<Pose3d> getRobotPose3DInFieldSpace() {
-    Optional<double[]> result = getEntryIfPopulated(robotPoseInFieldSpaceSubscriber);
-    if (result.isPresent()) {
-      return Optional.of(getPose3dFromTransformArray(result.get()));
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  /**
-   * The two-dimensional pose of the robot in the driver station's reference frame. This will return
-   * Optional.empty() if the current pipeline is not configured to use 3D tracking or if alliance
-   * is not configured in Driver Station.
-   *
-   * Driver station's reference frame:
-   *   X+: same edge as driver station's
-   *   Y+: away from driver station
-   *   origin: center of the field
-   * @return Pose2d of robot in driver station's frame, or else Optional.empty()
-   */
-  public Optional<Pose2d> getRobotPose2DInDriverStationSpace() {
-    if (robotPoseInDriverStationSpaceSubscriber == null) {
-      if (initRobotPoseInDriverStationSpaceSubscriber()) {
-        return getRobotPose2DInDriverStationSpace();
-      } else {
-        return Optional.empty();
-      }
-    }
-
-    Optional<double[]> result = getEntryIfPopulated(robotPoseInDriverStationSpaceSubscriber);
-    if (result.isPresent()) {
-      return Optional.of(getPose3dFromTransformArray(result.get()).toPose2d());
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  /**
-   * The three-dimensional pose of the robot in the driver station's reference frame. This will return
-   * Optional.empty() if the current pipeline is not configured to use 3D tracking or if alliance
-   * is not configured in Driver Station.
-   *
-   * Driver station's reference frame:
-   *   X+: same edge as driver station's
-   *   Y+: away from driver station
-   *   Z+: up, towards the sky
-   *   origin: center of the field
-   * @return Pose3d of robot in driver station's frame, or else Optional.empty()
-   */
-  public Optional<Pose3d> getRobotPose3DInDriverStationSpace() {
-    if (robotPoseInDriverStationSpaceSubscriber == null) {
-      if (initRobotPoseInDriverStationSpaceSubscriber()) {
-        return getRobotPose3DInDriverStationSpace();
-      } else {
-        return Optional.empty();
-      }
-    }
-
-    Optional<double[]> result = getEntryIfPopulated(robotPoseInDriverStationSpaceSubscriber);
-    if (result.isPresent()) {
-      return Optional.of(getPose3dFromTransformArray(result.get()));
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  /**
-   * The three-dimensional pose of the camera in the robot's reference frame. This value is likely
-   * constant, as its value is controlled by the user. This will return Optional.empty() if the
-   * current pipeline is not configured to use 3D tracking.
-   *
-   * Robot's reference frame:
-   *   X+: forward
-   *   Y+: rightward
-   *   Z+: upward, towards the sky
-   *   origin: center of the robot
-   * @return Pose3d of camera in robot's frame, or else Optional.empty()
-   */
-  public Optional<Pose3d> getCameraPose3DInRobotSpace() {
-    Optional<double[]> result = getEntryIfPopulated(cameraPoseInRobotSpaceSubscriber);
-    if (result.isPresent()) {
-      return Optional.of(getPose3dFromTransformArray(result.get()));
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  /**
-   * Set the pose of the camera in the robot's reference frame.
-   *
-   * Robot's reference frame:
-   *   X+: forward
-   *   Y+: rightward
-   *   Z+: upward, towards the sky
-   *   origin: center of the robot
-   * @param cameraPose new camera pose
-   */
-  public void setCameraPose3DInRobotSpace(Pose3d cameraPose) {
-    cameraPoseInRobotSpacePublisher.set(getTransformArrayFromPose3d(cameraPose));
-  }
-
-  /**
-   * The latency the image recognition pipeline contributes.
-   * @return pipeline-added latency or else Optional.empty()
-   */
-  public Optional<Double> getPipelineLatency() {
-    return getEntryIfPopulated(tlSubscriber);
-  }
-
-  /**
-   * The latency associated with the camera itself.
-   * @return camera latency or else Optional.empty()
-   */
-  public Optional<Double> getCameraLatency() {
-    return getEntryIfPopulated(clSubscriber);
-  }
-
-  /**
-   * The total latency of the recorded data.
-   * @return total latency or else Optional.empty()
-   */
-  public Optional<Double> getTotalLatency() {
-    Optional<Double> tl = getEntryIfPopulated(tlSubscriber);
-    Optional<Double> cl = getEntryIfPopulated(clSubscriber);
-
-    if (tl.isPresent() && cl.isPresent()) {
-      return Optional.of(tl.get() + cl.get());
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  /**
-   * The current active pipeline.
-   * @return current active pipeline or else Optional.empty()
-   */
-  public Optional<Long> getActivePipeline() {
-    return getEntryIfPopulated(pipelineEntry);
+  public long getActivePipeline() {
+    return pipelineSubscriber.get();
   }
 
   /**
    * Set the currently active pipeline.
-   * @param pipeline the pipeline to set to
-   * @throws IllegalArgumentException pipeline is not from 0 to 9, inclusive
+   * @param pipeline The index of the pipeline to which the Limelight will switch.
    */
-  public void setActivePipeline(long pipeline) throws IllegalArgumentException {
-    if (pipeline < 0 || pipeline > 9) {
-      throw new IllegalArgumentException("Pipeline must be between 0 and 9, inclusive");
+  public void setActivePipeline(long pipeline) {
+    pipelinePublisher.set(pipeline);
+  }
+
+  /**
+   * Get the 3D pose of the camera in robot space.
+   *
+   * <p>Robot space info:
+   * <ul>
+   *   <li>origin: The center of the robot.</li>
+   *   <li>+X: Forward as perceived by the robot.</li>
+   *   <li>+Y: Rightward as perceived by the robot.</li>
+   *   <li>+Z: Upward as perceived by the robot. If the robot is on a slanted surface, this will not be orthogonal
+   *       to the field's surface.</li>
+   * </ul>
+   * </p>
+   *
+   * @throws Full3DTargetingDisabledException Full 3D Targeting is currently disabled.
+   */
+  public Pose3d getCameraPoseInRobotSpace() throws Full3DTargetingDisabledException {
+    Pose3d pose = arrayToPose3d(cameraPoseInRobotSpaceSubscriber.get());
+    if (pose == null) {
+      throw new Full3DTargetingDisabledException("Attempted to get camera pose without Full 3D Targeting enabled");
     }
-    pipelineEntry.set(pipeline);
+
+    return pose;
   }
 
   /**
-   * Convert a transform array into a Pose3d.
-   * @param transform transform array
-   * @return a Pose3d equivalent to the transform
+   * Set the 3D pose of the camera in robot space.
+   *
+   * <p>Robot space info:
+   * <ul>
+   *   <li>origin: The center of the robot.</li>
+   *   <li>+X: Forward as perceived by the robot.</li>
+   *   <li>+Y: Rightward as perceived by the robot.</li>
+   *   <li>+Z: Upward as perceived by the robot. If the robot is on a slanted surface, this will not be orthogonal
+   *       to the field's surface.</li>
+   * </ul>
+   * </p>
+   *
+   * @param pose The new pose of the camera.
    */
-  private static Pose3d getPose3dFromTransformArray(double[] transform) {
-    Translation3d translation = new Translation3d(transform[0], transform[1], transform[2]);
-    Rotation3d rotation = new Rotation3d(transform[3], transform[4], transform[5]);
-    return new Pose3d(translation, rotation);
+  public void setCameraPoseInRobotSpace(Pose3d pose) {
+    cameraPoseInRobotSpacePublisher.set(pose3dToArray(pose));
   }
 
-  /**
-   * Convert a Pose3d into a transform array.
-   * @param pose a Pose3d
-   * @return a transform array equivalent to the pose
-   */
-  private static double[] getTransformArrayFromPose3d(Pose3d pose) {
+  private static Pose2d arrayToPose2d(double[] poseData) {
+    if (poseData.length < 6) {
+      return null;
+    }
+
+    return new Pose2d(poseData[0], poseData[1], new Rotation2d(Units.degreesToRadians(poseData[5])));
+  }
+
+  private static Pose3d arrayToPose3d(double[] poseData) {
+    if (poseData.length < 6) {
+      return null;
+    }
+
+    return new Pose3d(poseData[0], poseData[1], poseData[2],
+                      new Rotation3d(Units.degreesToRadians(poseData[3]),
+                                     Units.degreesToRadians(poseData[4]),
+                                     Units.degreesToRadians(poseData[5])));
+  }
+
+  private static double[] pose3dToArray(Pose3d pose) {
     Rotation3d rotation = pose.getRotation();
-    return new double[]{pose.getX(), pose.getY(), pose.getZ(), rotation.getX(), rotation.getY(), rotation.getZ()};
+    return new double[] {
+      pose.getX(),
+      pose.getY(),
+      pose.getZ(),
+      Units.radiansToDegrees(rotation.getX()),
+      Units.radiansToDegrees(rotation.getY()),
+      Units.radiansToDegrees(rotation.getZ())
+    };
   }
 
-  private static Optional<Long> getEntryIfPopulated(IntegerSubscriber subscriber) {
-    long value = subscriber.get(LONG_SENTINEL);
-    if (value == LONG_SENTINEL) {
-      return Optional.empty();
-    } else {
-      return Optional.of(value);
-    }
-  }
-
-  private static Optional<Double> getEntryIfPopulated(DoubleSubscriber subscriber) {
-    double value = subscriber.get(DOUBLE_SENTINEL);
-    if (value == DOUBLE_SENTINEL) {
-      return Optional.empty();
-    } else {
-      return Optional.of(value);
-    }
-  }
-
-  private static Optional<double[]> getEntryIfPopulated(DoubleArraySubscriber subscriber) {
-    double[] result = subscriber.get(new double[]{DOUBLE_SENTINEL});
-    for (double value : result) {
-      if (value != DOUBLE_SENTINEL) {
-        return Optional.of(result);
-      }
-    }
-    return Optional.empty();
-  }
-
-  @Override
-  public void periodic() {
-    if (publishingOptions.contains(SmartDashboardPublishing.TARGET_2D)) {
-      Optional<TargetInfo2D> targetInfo2D = getCurrent2DTargetInfo();
-      if (targetInfo2D.isPresent()) {
-        SmartDashboard.putString("Current target", targetInfo2D.toString());
-      } else {
-        SmartDashboard.putString("Current target", "None");
-      }
-    }
-
-    if (publishingOptions.contains(SmartDashboardPublishing.TARGET_3D)) {
-      Optional<TargetInfo3D> targetInfo3D = getCurrent3DTargetInfo();
-      if (targetInfo3D.isPresent()) {
-        SmartDashboard.putString("Current 3D target", targetInfo3D.toString());
-      } else {
-        SmartDashboard.putString("Current 3D target", "None");
-      }
-    }
-
-    if (publishingOptions.contains(SmartDashboardPublishing.CAMERA_POSE)) {
-      Optional<Pose3d> cameraPose = getCameraPose3DInRobotSpace();
-      if (cameraPose.isPresent()) {
-        SmartDashboard.putString("Camera pose in robot's frame", DebugUtil.formatToString(cameraPose.get()));
-      } else {
-        SmartDashboard.putString("Camera pose in robot's frame", "Unknown");
-      }
-    }
-
-    if (publishingOptions.contains(SmartDashboardPublishing.ROBOT_POSE)) {
-      Optional<Pose3d> robotPose = getRobotPose3DInFieldSpace();
-      if (robotPose.isPresent()) {
-        SmartDashboard.putString("Robot 2D pose", DebugUtil.formatToString(robotPose.get().toPose2d()));
-        SmartDashboard.putString("Robot 3D pose", DebugUtil.formatToString(robotPose.get()));
-      } else {
-        SmartDashboard.putString("Robot 2D pose", "Unknown");
-        SmartDashboard.putString("Robot 3D pose", "Unknown");
-      }
-    }
-  }
 }
