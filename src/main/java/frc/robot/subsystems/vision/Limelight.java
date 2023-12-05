@@ -17,7 +17,6 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
-import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.DoubleArrayPublisher;
 import edu.wpi.first.networktables.DoubleArraySubscriber;
@@ -34,7 +33,8 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 public class Limelight extends SubsystemBase {
 
   /**
-   * Results of a image-processing pipeline run on a Limelight.
+   * Results of a image-processing pipeline run on a Limelight. A result is calculated from a single snapshot, so
+   * information contained in a {@code Result} will be from the same instant in time.
    */
   public static final class Result {
 
@@ -85,7 +85,17 @@ public class Limelight extends SubsystemBase {
       }
 
       /**
-       * Get the 2D pose of the robot in field space calculated using this fiducial.
+       * <p>Get the 2D pose of the robot in field space calculated using this fiducial.</p>
+       *
+       * <p>Field space info:
+       * <ul>
+       *   <li>origin: The center of the field.</li>
+       *   <li>+X: Rightward along the long side of the field.</li>
+       *   <li>+Y: Upward along the short side of the field.</li>
+       * </ul>
+       * </p>
+       *
+       * @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
        */
       public Pose2d getCalculatedRobotPose2dInFieldSpace() throws Full3DTargetingDisabledException {
         Pose2d pose = arrayToPose2d(calculatedRobotPoseInFieldSpace);
@@ -96,7 +106,18 @@ public class Limelight extends SubsystemBase {
       }
 
       /**
-       * Get the 3D pose of the robot in field space calculated using this fiducial.
+       * <p>Get the 3D pose of the robot in field space calculated using this fiducial.</p>
+       *
+       * <p>Field space info:
+       * <ul>
+       *   <li>origin: The center of the field.</li>
+       *   <li>+X: Rightward along the long side of the field.</li>
+       *   <li>+Y: Upward along the short side of the field.</li>
+       *   <li>+Z: Upward orthogonal to the field's surface.</li>
+       * </ul>
+       * </p>
+       *
+       *  @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
        */
       public Pose3d getCalculatedRobotPose3dInFieldSpace() throws Full3DTargetingDisabledException {
         Pose3d pose = arrayToPose3d(calculatedRobotPoseInFieldSpace);
@@ -107,7 +128,17 @@ public class Limelight extends SubsystemBase {
       }
 
       /**
-       * Get the 2D pose of this fiducial in camera space.
+       * <p>Get the 2D pose of this fiducial in camera space.</p>
+       *
+       * <p>Camera space info:
+       * <ul>
+       *   <li>origin: The camera lens.</li>
+       *   <li>+X: Rightward when seen from the camera's view.</li>
+       *   <li>+Y: Upward when seen from the camera's view.</li>
+       * </ul>
+       * </p>
+       *
+       * @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
        */
       public Pose2d getPose2dInCameraSpace() throws Full3DTargetingDisabledException {
         Pose2d pose = arrayToPose2d(poseInCameraSpace);
@@ -118,7 +149,18 @@ public class Limelight extends SubsystemBase {
       }
 
       /**
-       * Get the 3D pose of this fiducial in camera space.
+       * <p>Get the 3D pose of this fiducial in camera space.</p>
+       *
+       * <p>Camera space info:
+       * <ul>
+       *   <li>origin: The camera lens.</li>
+       *   <li>+X: Rightward when seen from the camera's view.</li>
+       *   <li>+Y: Upward when seen from the camera's view.</li>
+       *   <li>+Z: Directly forward orthogonal to the camera's front surface.</li>
+       * </ul>
+       * </p>
+       *
+       *  @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
        */
       public Pose3d getPose3dInCameraSpace() throws Full3DTargetingDisabledException {
         Pose3d pose = arrayToPose3d(poseInCameraSpace);
@@ -129,7 +171,17 @@ public class Limelight extends SubsystemBase {
       }
 
       /**
-       * Get the 2D pose of this fiducial in robot space.
+       * <p>Get the 2D pose of this fiducial in robot space.</p>
+       *
+       * <p>Robot space info:
+       * <ul>
+       *   <li>origin: The center of the robot.</li>
+       *   <li>+X: Forward as perceived by the robot.</li>
+       *   <li>+Y: Rightward as perceived by the robot.</li>
+       * </ul>
+       * </p>
+       *
+       * @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
        */
       public Pose2d getPose2dInRobotSpace() throws Full3DTargetingDisabledException {
         Pose2d pose = arrayToPose2d(poseInRobotSpace);
@@ -140,7 +192,19 @@ public class Limelight extends SubsystemBase {
       }
 
       /**
-       * Get the 3D pose of this fiducial in robot space.
+       * <p>Get the 3D pose of this fiducial in robot space.</p>
+       *
+       * <p>Robot space info:
+       * <ul>
+       *   <li>origin: The center of the robot.</li>
+       *   <li>+X: Forward as perceived by the robot.</li>
+       *   <li>+Y: Rightward as perceived by the robot.</li>
+       *   <li>+Z: Upward as perceived by the robot. If the robot is on a slanted surface, this will not be orthogonal
+       *       to the field's surface.</li>
+       * </ul>
+       * </p>
+       *
+       * @throws Full3DTargetingDisabledException Full 3D Targeting was disabled when obtaining this result.
        */
       public Pose3d getPose3dInRobotSpace() throws Full3DTargetingDisabledException {
         Pose3d pose = arrayToPose3d(poseInRobotSpace);
@@ -158,10 +222,19 @@ public class Limelight extends SubsystemBase {
       }
 
       /**
-       * Get the position of the fiducial in the camera view.
+       * <p>Get the angle off the set crosshair of the fiducial in the camera view.</p>
+       *
+       * <p>Camera view axis info:
+       * <ul>
+       *   <li>origin: The current position of the crosshair.</li>
+       *   <li>+X: Horizontal, pointing rightward, measured in degrees off the origin.</li>
+       *   <li>+Y: Vertical, pointing upward, measured in degrees off the origin.</li>
+       * </ul>
+       * </p>
        */
-      public Translation2d getPositionInCamera() {
-        return new Translation2d(xInCamera, yInCamera);
+      public Rotation3d getAngleInCameraView() {
+        return new Rotation3d(0, Units.degreesToRadians(xInCamera), Units.degreesToRadians(yInCamera));
+
       }
 
     }
@@ -194,6 +267,13 @@ public class Limelight extends SubsystemBase {
 
     private double captureTimestamp;
 
+    /**
+     * Create a new {@code Result} from a JSON object.
+     *
+     * @param json The JSON object.
+     * @return A {@code Result} containing the information in the JSON object.
+     * @throws JsonProcessingException The given JSON was invalid.
+     */
     public static Result createFromJson(String json) throws JsonProcessingException {
       long start = System.nanoTime();
 
@@ -228,10 +308,8 @@ public class Limelight extends SubsystemBase {
     }
 
     /**
-     * Get the time at which this result was captured relative to
-     * when the robot started running. This can be used with WPILib's
-     * pose estimators such as
-     * {@link edu.wpi.first.math.estimator.DifferentialDrivePoseEstimator}
+     * Get the time at which this result was captured relative to when the robot started running. This can be used
+     * with WPILib's pose estimators such as {@link edu.wpi.first.math.estimator.DifferentialDrivePoseEstimator}
      * when specifying the time stamp for vision measurements.
      */
     public double getCaptureTimestamp() {
@@ -254,8 +332,17 @@ public class Limelight extends SubsystemBase {
     }
 
     /**
-     * The 2D pose of the robot in field space. Will return
-     * Optional.empty() if Full 3D Targeting is not enabled.
+     * <p>Get the 2D pose of the robot in field space calculated using all available fiducials.</p>
+     *
+     * <p>Field space info:
+     * <ul>
+     *   <li>origin: The center of the field.</li>
+     *   <li>+X: Rightward along the long side of the field.</li>
+     *   <li>+Y: Upward along the short side of the field.</li>
+     * </ul>
+     * </p>
+     *
+     * @throws MegaTagDisabledException MegaTag was disabled when obtaining this result.
      */
     public Pose2d getRobotPose2dInFieldSpace() throws MegaTagDisabledException {
       Pose2d pose = arrayToPose2d(robotPoseInFieldSpace);
@@ -266,8 +353,18 @@ public class Limelight extends SubsystemBase {
     }
 
     /**
-     * The 3D pose of the robot in field space. Will return
-     * Optional.empty() if Full 3D Targeting is not enabled.
+     * <p>Get the 3D pose of the robot in field space calculated using all available fiducials.</p>
+     *
+     * <p>Field space info:
+     * <ul>
+     *   <li>origin: The center of the field.</li>
+     *   <li>+X: Rightward along the long side of the field.</li>
+     *   <li>+Y: Upward along the short side of the field.</li>
+     *   <li>+Z: Upward orthogonal to the field's surface.</li>
+     * </ul>
+     * </p>
+     *
+     * @throws MegaTagDisabledException MegaTag was disabled when obtaining this result.
      */
     public Pose3d getRobotPose3dInFieldSpace() throws MegaTagDisabledException {
       Pose3d pose = arrayToPose3d(robotPoseInFieldSpace);
@@ -277,6 +374,21 @@ public class Limelight extends SubsystemBase {
       return pose;
     }
 
+    /**
+     * <p>Get the 2D pose of the robot in field space oriented from the view of the current alliance's driver stations
+     * calculated using all available fiducials.</p>
+     *
+     * <p>Field space info:
+     * <ul>
+     *   <li>origin: The center of the field.</li>
+     *   <li>+X: Rightward along the side of the field parallel to the driver station lineup.</li>
+     *   <li>+Y: Away from the driver stations, perpendicular to their lineup.</li>
+     * </ul>
+     * </p>
+     *
+     * @throws MegaTagDisabledException MegaTag was disabled when obtaining this result.
+     * @throws NoAllianceException This robot is not currently on an alliance.
+     */
     public Pose2d getRobotPose2dFromDriverStation() throws MegaTagDisabledException, NoAllianceException {
       Pose2d pose;
       switch (DriverStation.getAlliance()) {
@@ -297,6 +409,22 @@ public class Limelight extends SubsystemBase {
       return pose;
     }
 
+    /**
+     * <p>Get the 3D pose of the robot in field space oriented from the view of the current alliance's driver stations
+     * calculated using all available fiducials.</p>
+     *
+     * <p>Field space info:
+     * <ul>
+     *   <li>origin: The center of the field.</li>
+     *   <li>+X: Rightward along the side of the field parallel to the driver station lineup.</li>
+     *   <li>+Y: Away from the driver stations, perpendicular to their lineup.</li>
+     *   <li>+Z: Upward orthogonal to the field's surface.</li>
+     * </ul>
+     * </p>
+     *
+     * @throws MegaTagDisabledException MegaTag was disabled when obtaining this result.
+     * @throws NoAllianceException This robot is not currently on an alliance.
+     */
     public Pose3d getRobotPose3dFromDriverStation() throws MegaTagDisabledException, NoAllianceException {
       Pose3d pose;
       switch (DriverStation.getAlliance()) {
@@ -317,6 +445,9 @@ public class Limelight extends SubsystemBase {
       return pose;
     }
 
+    /**
+     * Get all fiducials detected in the camera view.
+     */
     public Fiducial[] getFoundFiducials() {
       return fiducials;
     }
@@ -359,6 +490,10 @@ public class Limelight extends SubsystemBase {
 
   private IntegerSubscriber hasTargetSubscriber;
 
+  /**
+   * Create a new Limelight interface.
+   * @param name The name of the Limelight's network table.
+   */
   public Limelight(String name) {
     this.name = name;
     NetworkTable netTable = NetworkTableInstance.getDefault().getTable(name);
@@ -379,6 +514,11 @@ public class Limelight extends SubsystemBase {
     return dump.equals(JSON_SENTINEL) ? Optional.empty() : Optional.of(dump);
   }
 
+  /**
+   * Get the result from the most recently processed camera frame.
+   * @throws JsonProcessingException The provided JSON was invalid.
+   * @throws IOException The JSON dump could not be found.
+   */
   public Result getLatestResult() throws JsonProcessingException, IOException {
     long start = System.nanoTime();
 
@@ -392,22 +532,50 @@ public class Limelight extends SubsystemBase {
     return result;
   }
 
+  /**
+   * Get the name of the Limelight's network table.
+   */
   public String getName() {
     return name;
   }
 
+  /**
+   * Returns {@code true} if the Limelight currently sees a target.
+   */
   public boolean seesTarget() {
     return hasTargetSubscriber.get() == 1 ? true : false;
   }
 
+  /**
+   * Get the index of the currently active pipeline.
+   */
   public long getActivePipeline() {
     return pipelineSubscriber.get();
   }
 
+  /**
+   * Set the currently active pipeline.
+   * @param pipeline The index of the pipeline to which the Limelight will switch.
+   */
   public void setActivePipeline(long pipeline) {
     pipelinePublisher.set(pipeline);
   }
 
+  /**
+   * Get the 3D pose of the camera in robot space.
+   *
+   * <p>Robot space info:
+   * <ul>
+   *   <li>origin: The center of the robot.</li>
+   *   <li>+X: Forward as perceived by the robot.</li>
+   *   <li>+Y: Rightward as perceived by the robot.</li>
+   *   <li>+Z: Upward as perceived by the robot. If the robot is on a slanted surface, this will not be orthogonal
+   *       to the field's surface.</li>
+   * </ul>
+   * </p>
+   *
+   * @throws Full3DTargetingDisabledException Full 3D Targeting is currently disabled.
+   */
   public Pose3d getCameraPoseInRobotSpace() throws Full3DTargetingDisabledException {
     Pose3d pose = arrayToPose3d(cameraPoseInRobotSpaceSubscriber.get());
     if (pose == null) {
@@ -417,6 +585,21 @@ public class Limelight extends SubsystemBase {
     return pose;
   }
 
+  /**
+   * Set the 3D pose of the camera in robot space.
+   *
+   * <p>Robot space info:
+   * <ul>
+   *   <li>origin: The center of the robot.</li>
+   *   <li>+X: Forward as perceived by the robot.</li>
+   *   <li>+Y: Rightward as perceived by the robot.</li>
+   *   <li>+Z: Upward as perceived by the robot. If the robot is on a slanted surface, this will not be orthogonal
+   *       to the field's surface.</li>
+   * </ul>
+   * </p>
+   *
+   * @param pose The new pose of the camera.
+   */
   public void setCameraPoseInRobotSpace(Pose3d pose) {
     cameraPoseInRobotSpacePublisher.set(pose3dToArray(pose));
   }

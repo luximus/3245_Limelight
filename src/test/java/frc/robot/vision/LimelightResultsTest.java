@@ -138,7 +138,7 @@ public class LimelightResultsTest {
     Limelight.Result result = Limelight.Result.createFromJson(one2dTargetJsonSample);
     Fiducial fiducial = result.getFoundFiducials()[0];
 
-    assertEquals(fiducial.getPositionInCamera(), new Translation2d(-10.46579991906529, -9.52471525306504));
+    assertEquals(fiducial.getAngleInCameraView(), new Rotation3d(0, Units.degreesToRadians(-10.46579991906529), Units.degreesToRadians(-9.52471525306504)));
   }
 
   @Test
