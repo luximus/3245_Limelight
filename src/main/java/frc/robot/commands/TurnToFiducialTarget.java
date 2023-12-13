@@ -37,7 +37,7 @@ public class TurnToFiducialTarget extends CommandBase {
    * @param tolerance The acceptable deviation from "straight-on" the target, in degrees.
    * */
   public TurnToFiducialTarget(Drivetrain drivetrain, Limelight camera, int fiducialId, double turnSpeed, double tolerance) {
-    addRequirements(drivetrain, camera);
+    addRequirements(drivetrain);
 
     this.drivetrain = drivetrain;
     this.camera = camera;

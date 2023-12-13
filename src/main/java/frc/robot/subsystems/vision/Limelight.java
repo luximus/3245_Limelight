@@ -27,10 +27,9 @@ import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StringSubscriber;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 /** An interface to a Limelight camera. */
-public class Limelight extends SubsystemBase {
+public class Limelight {
 
   /**
    * Results of a image-processing pipeline run on a Limelight. A result is calculated from a single snapshot, so
@@ -619,7 +618,7 @@ public class Limelight extends SubsystemBase {
    * Set the currently active pipeline.
    * @param pipeline The index of the pipeline to which the Limelight will switch.
    */
-  public void setActivePipeline(long pipeline) {
+  public synchronized void setActivePipeline(long pipeline) {
     pipelinePublisher.set(pipeline);
   }
 
@@ -662,7 +661,7 @@ public class Limelight extends SubsystemBase {
    *
    * @param pose The new pose of the camera.
    */
-  public void setCameraPoseInRobotSpace(Pose3d pose) {
+  public synchronized void setCameraPoseInRobotSpace(Pose3d pose) {
     cameraPoseInRobotSpacePublisher.set(pose3dToArray(pose));
   }
 
