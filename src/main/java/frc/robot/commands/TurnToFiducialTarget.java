@@ -70,10 +70,12 @@ public class TurnToFiducialTarget extends CommandBase {
         double correctionAngle = Units.radiansToDegrees(-fiducial.getAngleInCameraView().getZ());
         angle = Optional.of(-correctionAngle);
 
-        if (correctionAngle > 0) {
-          drivetrain.driveArcadeStyle(0, turnSpeed);
-        } else {
-          drivetrain.driveArcadeStyle(0, -turnSpeed);
+        if (Math.abs(correctionAngle) >= tolerance) {
+          if (correctionAngle > 0) {
+            drivetrain.driveArcadeStyle(0, turnSpeed);
+          } else {
+            drivetrain.driveArcadeStyle(0, -turnSpeed);
+          }
         }
       } catch (FiducialNotDetectedException e) {
         drivetrain.stop();
@@ -91,9 +93,6 @@ public class TurnToFiducialTarget extends CommandBase {
   // Returns true when the command should end.
   @Override
   public boolean isFinished() {
-    if (angle.isEmpty()) {
-      return false;
-    }
-    return Math.abs(angle.get()) < tolerance;
+    return false;
   }
 }
