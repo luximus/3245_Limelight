@@ -49,7 +49,7 @@ public class RobotContainer {
   private Command getDefaultDriveCommand() {
     return new DriveArcadeStyle(drivetrain,
                                 () -> -controller.getLeftY(),
-                                () -> controller.getRightX(),
+                                () -> -controller.getRightX(),
                                 TELEOP_MAX_SPEED);
   }
 
