@@ -4,7 +4,10 @@
 
 package frc.robot;
 
+import java.io.IOException;
 import java.util.List;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
@@ -22,38 +25,44 @@ import edu.wpi.first.wpilibj2.command.RunCommand;
 import edu.wpi.first.wpilibj2.command.SwerveControllerCommand;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import frc.robot.subsystems.Drivetrain;
+import frc.robot.subsystems.vision.Limelight;
+import frc.robot.subsystems.vision.MegaTagDisabledException;
+import frc.robot.subsystems.vision.Limelight.Result;
 
-/*
- * This class is where the bulk of the robot should be declared.  Since Command-based is a
- * "declarative" paradigm, very little robot logic should actually be handled in the {@link Robot}
- * periodic methods (other than the scheduler calls).  Instead, the structure of the robot
- * (including subsystems, commands, and button mappings) should be declared here.
+/**
+ * The container for the robot. Contains subsystems, OI devices, and commands.
  */
 public class RobotContainer {
   // The robot's subsystems
   private final Drivetrain drivetrain = new Drivetrain();
+  private final Limelight limelight = new Limelight("limelight");
 
   // The driver's controller
   XboxController driverController = new XboxController(ControlConstants.Teleop.kDriverControllerPort);
 
-  /**
-   * The container for the robot. Contains subsystems, OI devices, and commands.
-   */
   public RobotContainer() {
+    Result initialResult;
+    try {
+      initialResult = limelight.getLatestResult();
+    } catch (IOException e) {
+      System.err.println("Failed to get absolute robot pose. Falling back to relative pose.");
+      return;
+    }
+
+    Pose2d initialPose;
+    try {
+      initialPose = initialResult.getRobotPose2dInFieldSpace();
+    } catch (MegaTagDisabledException e) {
+      System.err.println("Failed to get absolute robot pose. Falling back to relative pose.");
+      return;
+    }
+
+    drivetrain.updatePoseWithVisionMeasurement(initialPose, initialResult.getCaptureTimestamp());
     // Configure the button bindings
     configureButtonBindings();
 
     // Configure default commands
-    drivetrain.setDefaultCommand(
-        // The left stick controls translation of the robot.
-        // Turning is controlled by the X axis of the right stick.
-        new RunCommand(
-            () -> drivetrain.drive(
-                -MathUtil.applyDeadband(driverController.getLeftY(), ControlConstants.Teleop.kDriveDeadband),
-                -MathUtil.applyDeadband(driverController.getLeftX(), ControlConstants.Teleop.kDriveDeadband),
-                -MathUtil.applyDeadband(driverController.getRightX(), ControlConstants.Teleop.kDriveDeadband),
-                true, true),
-            drivetrain));
+    drivetrain.setDefaultCommand(getDefaultDriveCommand());
   }
 
   /**
@@ -67,9 +76,17 @@ public class RobotContainer {
    */
   private void configureButtonBindings() {
     new JoystickButton(driverController, Button.kRightBumper.value)
-        .whileTrue(new RunCommand(
-            () -> drivetrain.setToXFormation(),
-            drivetrain));
+        .whileTrue(new RunCommand(drivetrain::setToXFormation, drivetrain));
+  }
+
+  public Command getDefaultDriveCommand() {
+    return new RunCommand(() -> {
+      drivetrain.drive(
+          -MathUtil.applyDeadband(driverController.getLeftY(), ControlConstants.Teleop.kDriveDeadband),
+          -MathUtil.applyDeadband(driverController.getLeftX(), ControlConstants.Teleop.kDriveDeadband),
+          -MathUtil.applyDeadband(driverController.getRightX(), ControlConstants.Teleop.kDriveDeadband),
+          true, true);
+    }, drivetrain);
   }
 
   /**
@@ -85,8 +102,8 @@ public class RobotContainer {
         // Add kinematics to ensure max speed is actually obeyed
         .setKinematics(Drivetrain.getKinematics());
 
-    // An example trajectory to follow. All units in meters.
-    Trajectory exampleTrajectory = TrajectoryGenerator.generateTrajectory(
+    // The trajectory to follow. All units in meters.
+    Trajectory trajectory = TrajectoryGenerator.generateTrajectory(
         // Start at the origin facing the +X direction
         new Pose2d(0, 0, new Rotation2d(0)),
         // Pass through these two interior waypoints, making an 's' curve path
@@ -100,8 +117,8 @@ public class RobotContainer {
     thetaController.enableContinuousInput(-Math.PI, Math.PI);
 
     SwerveControllerCommand swerveControllerCommand = new SwerveControllerCommand(
-        exampleTrajectory,
-        drivetrain::getPose, // Functional interface to feed supplier
+        trajectory,
+        drivetrain::getRelativePose, // Functional interface to feed supplier
         Drivetrain.getKinematics(),
 
         // Position controllers
@@ -111,10 +128,7 @@ public class RobotContainer {
         drivetrain::setModuleStates,
         drivetrain);
 
-    // Reset odometry to the starting pose of the trajectory.
-    drivetrain.resetOdometry(exampleTrajectory.getInitialPose());
-
     // Run path following command, then stop at the end.
-    return swerveControllerCommand.andThen(() -> drivetrain.drive(0, 0, 0, false, false));
+    return swerveControllerCommand.andThen(drivetrain::stop);
   }
 }

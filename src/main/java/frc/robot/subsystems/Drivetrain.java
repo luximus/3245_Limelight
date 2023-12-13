@@ -6,13 +6,13 @@ package frc.robot.subsystems;
 
 import com.revrobotics.CANSparkMax.IdleMode;
 
+import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.math.util.Units;
@@ -22,6 +22,11 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.utils.SwerveUtils;
 
 public class Drivetrain extends SubsystemBase {
+
+  /**
+   * How the robot is currently being positioned.
+   */
+  public static enum LocalizationMode { ABSOLUTE, RELATIVE }
 
   // Driving Parameters - Note that these are not the maximum capable speeds of
   // the robot, rather the allowed maximum speeds
@@ -95,23 +100,45 @@ public class Drivetrain extends SubsystemBase {
 
   private SlewRateLimiter magLimiter = new SlewRateLimiter(kMagnitudeSlewRate);
   private SlewRateLimiter rotLimiter = new SlewRateLimiter(kRotationalSlewRate);
-  private double m_prevTime = WPIUtilJNI.now() * 1e-6;
+  private double prevTime = WPIUtilJNI.now() * 1e-6;
 
   private IdleMode idleMode = kDefaultIdleMode;
 
   // Odometry class for tracking robot pose
-  SwerveDriveOdometry odometry = new SwerveDriveOdometry(
+  SwerveDrivePoseEstimator poseEstimator;
+
+  private boolean hasValidAbsolutePosition;
+
+  private Pose2d relativePoseBasis;
+
+  /**
+   * Create a new Drivetrain. Localization mode will be relative to the robot's current position on the field.
+   */
+  public Drivetrain() {
+    relativePoseBasis = new Pose2d();
+    poseEstimator = new SwerveDrivePoseEstimator(
       kDriveKinematics,
       Rotation2d.fromDegrees(gyro.getAngle()),
-      new SwerveModulePosition[] {
-          frontLeftModule.getPosition(),
-          frontRightModule.getPosition(),
-          rearLeftModule.getPosition(),
-          rearRightModule.getPosition()
-      });
+      getSwerveModulePositions(),
+      new Pose2d());
+      frontLeftModule.setIdleMode(idleMode);
+      frontRightModule.setIdleMode(idleMode);
+      rearLeftModule.setIdleMode(idleMode);
+      rearRightModule.setIdleMode(idleMode);
+  }
 
-  /** Creates a new DriveSubsystem. */
-  public Drivetrain() {
+  /**
+   * Create a new Drivetrain. Localization mode will be absolute.
+   *
+   * @param The initial pose of the robot in meters, determined from a vision measurement.
+   * */
+  public Drivetrain(Pose2d initialPoseMeters) {
+    relativePoseBasis = initialPoseMeters;
+    poseEstimator = new SwerveDrivePoseEstimator(
+      kDriveKinematics,
+      Rotation2d.fromDegrees(gyro.getAngle()),
+      getSwerveModulePositions(),
+      initialPoseMeters);
     frontLeftModule.setIdleMode(idleMode);
     frontRightModule.setIdleMode(idleMode);
     rearLeftModule.setIdleMode(idleMode);
@@ -121,7 +148,7 @@ public class Drivetrain extends SubsystemBase {
   @Override
   public void periodic() {
     // Update the odometry in the periodic block
-    odometry.update(
+    poseEstimator.update(
         Rotation2d.fromDegrees(gyro.getAngle()),
         new SwerveModulePosition[] {
             frontLeftModule.getPosition(),
@@ -132,33 +159,81 @@ public class Drivetrain extends SubsystemBase {
   }
 
   /**
-   * Returns the currently-estimated pose of the robot.
+   * Return the currently-estimated pose of the robot.
    *
    * @return The pose.
    */
-  public Pose2d getPose() {
-    return odometry.getPoseMeters();
+  public Pose2d getRelativePose() {
+    return poseEstimator.getEstimatedPosition().relativeTo(relativePoseBasis);
+  }
+
+  public void resetRelativePose() {
+    if (hasValidAbsolutePosition) {
+      try {
+        relativePoseBasis = getAbsolutePose();
+      } catch (NoAbsolutePositionAvailableException e) {
+        throw new IllegalStateException("Despite confirming that the absolute position is available, getting the absolute pose failed", e);
+      }
+    } else {
+      relativePoseBasis = new Pose2d();
+    }
   }
 
   /**
-   * Resets the odometry to the specified pose.
+   * Return the currently-estimated pose of the robot in the field.
    *
-   * @param pose The pose to which to set the odometry.
+   * @return
+   * @throws NoAbsolutePositionAvailableException There is no valid absolute position currently available.
    */
-  public void resetOdometry(Pose2d pose) {
-    odometry.resetPosition(
-        Rotation2d.fromDegrees(gyro.getAngle()),
-        new SwerveModulePosition[] {
-            frontLeftModule.getPosition(),
-            frontRightModule.getPosition(),
-            rearLeftModule.getPosition(),
-            rearRightModule.getPosition()
-        },
-        pose);
+  public Pose2d getAbsolutePose() throws NoAbsolutePositionAvailableException {
+    if (!hasValidAbsolutePosition) {
+      throw new NoAbsolutePositionAvailableException("There is no valid absolute position currently available");
+    }
+    return poseEstimator.getEstimatedPosition();
   }
 
   /**
-   * Method to drive the robot using joystick info.
+   * Invalidate the currently available absolute pose. If there is no current valid absolute pose, then this method
+   * does nothing.
+   */
+  public void invalidateAbsolutePose() {
+    hasValidAbsolutePosition = false;
+  }
+
+  /**
+   * Reset the measured position of the robot to be relative to the current position. This will invalidate the
+   * currently available absolute pose.
+   */
+  public void resetPosition() {
+    invalidateAbsolutePose();
+    relativePoseBasis = new Pose2d();
+    poseEstimator.resetPosition(
+      Rotation2d.fromDegrees(gyro.getAngle()),
+      getSwerveModulePositions(),
+      new Pose2d());
+  }
+
+  /**
+   * Update the current robot pose with a vision measurement. The current robot pose will not be updated if the vision
+   * measurement is too far off and robot localization is currently absolute. If the robot localization mode is
+   * relative, it will become absolute.
+   *
+   * @param poseMeters The pose of the robot, as calculated by a vision measurement.
+   * @param timestampSeconds The time at which the vision measurement was taken.
+   */
+  public void updatePoseWithVisionMeasurement(Pose2d poseMeters, double timestampSeconds) {
+    try {
+      if (!hasValidAbsolutePosition || getAbsolutePose().getTranslation().getDistance(poseMeters.getTranslation()) < 1) {
+        hasValidAbsolutePosition = true;
+        poseEstimator.addVisionMeasurement(poseMeters, timestampSeconds);
+      }
+    } catch (NoAbsolutePositionAvailableException e) {
+      throw new IllegalStateException("Despite confirming that the absolute position is available, getting the absolute pose failed", e);
+    }
+  }
+
+  /**
+   * Drive the robot using joystick info.
    *
    * @param xSpeed        Speed of the robot in the x direction (forward).
    * @param ySpeed        Speed of the robot in the y direction (sideways).
@@ -187,7 +262,7 @@ public class Drivetrain extends SubsystemBase {
 
 
       double currentTime = WPIUtilJNI.now() * 1e-6;
-      double elapsedTime = currentTime - m_prevTime;
+      double elapsedTime = currentTime - prevTime;
       double angleDif = SwerveUtils.getAngleDifference(inputTranslationDir, currentTranslationDir);
       if (angleDif < 0.45*Math.PI) {
         currentTranslationDir = SwerveUtils.stepTowardsCircular(currentTranslationDir, inputTranslationDir, directionSlewRate * elapsedTime);
@@ -207,7 +282,7 @@ public class Drivetrain extends SubsystemBase {
         currentTranslationDir = SwerveUtils.stepTowardsCircular(currentTranslationDir, inputTranslationDir, directionSlewRate * elapsedTime);
         currentTranslationMag = magLimiter.calculate(0.0);
       }
-      m_prevTime = currentTime;
+      prevTime = currentTime;
 
       xSpeedCommanded = currentTranslationMag * Math.cos(currentTranslationDir);
       ySpeedCommanded = currentTranslationMag * Math.sin(currentTranslationDir);
@@ -238,9 +313,17 @@ public class Drivetrain extends SubsystemBase {
   }
 
   /**
-   * Sets the wheels into an X formation to prevent movement.
+   * Stop the robot from moving.
+   */
+  public void stop() {
+    drive(0, 0, 0, false, false);
+  }
+
+  /**
+   * Set the wheels into an X formation to prevent movement.
    */
   public void setToXFormation() {
+    stop();
     frontLeftModule.setDesiredState(new SwerveModuleState(0, Rotation2d.fromDegrees(45)));
     frontRightModule.setDesiredState(new SwerveModuleState(0, Rotation2d.fromDegrees(-45)));
     rearLeftModule.setDesiredState(new SwerveModuleState(0, Rotation2d.fromDegrees(-45)));
@@ -248,7 +331,10 @@ public class Drivetrain extends SubsystemBase {
   }
 
   /**
-   * Sets the swerve ModuleStates.
+   * Set the swerve module states. This method should generally not be called directly.
+   *
+   * This method's interface conforms to the standard for the built-in
+   * {@link edu.wpi.first.wpilibj2.command.SwerveControllerCommand}.
    *
    * @param desiredStates The desired SwerveModule states.
    */
@@ -311,7 +397,19 @@ public class Drivetrain extends SubsystemBase {
     rearRightModule.setIdleMode(idleMode);
   }
 
+  /**
+   * Get the kinematic characteristics of the drivetrain.
+   */
   public static SwerveDriveKinematics getKinematics() {
     return kDriveKinematics;
+  }
+
+  private SwerveModulePosition[] getSwerveModulePositions() {
+    return new SwerveModulePosition[] {
+      frontLeftModule.getPosition(),
+      frontRightModule.getPosition(),
+      rearLeftModule.getPosition(),
+      rearRightModule.getPosition()
+    };
   }
 }
