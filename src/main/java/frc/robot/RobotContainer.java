@@ -11,7 +11,6 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.commands.DriveArcadeStyle;
 import frc.robot.commands.SeekTarget;
-import frc.robot.commands.TurnToFiducialTarget;
 import frc.robot.subsystems.Drivetrain;
 import frc.robot.subsystems.vision.Limelight;
 
@@ -29,6 +28,8 @@ public class RobotContainer {
 
   public RobotContainer() {
     configureBindings();
+
+    SmartDashboard.putBoolean("Sees target?", false);
   }
 
   private void configureBindings() {
@@ -37,14 +38,19 @@ public class RobotContainer {
     new Trigger(limelight::seesTarget)
       .whileTrue(Commands.startEnd(() -> SmartDashboard.putBoolean("Sees target?", true),
                                    () -> SmartDashboard.putBoolean("Sees target?", false)));
+
+    controller.a()
+      .whileTrue(getSeekCommand());
   }
 
   private Command getDefaultDriveCommand() {
-    // return new DriveArcadeStyle(drivetrain,
-    //                             () -> -controller.getLeftY(),
-    //                             () -> -controller.getRightX(),
-    //                             TELEOP_MAX_SPEED);
+    return new DriveArcadeStyle(drivetrain,
+                                () -> -controller.getLeftY(),
+                                () -> -controller.getRightX(),
+                                TELEOP_MAX_SPEED);
+  }
 
+  private Command getSeekCommand() {
     return new SeekTarget(drivetrain, limelight, 1, 0.1);
   }
 

@@ -30,8 +30,8 @@ public class SeekTarget extends CommandBase {
   private static final double TARGET_ANGLE_CONTROLLER_I = 0.0;
   private static final double TARGET_ANGLE_CONTROLLER_D = 0.0;
 
-  private static final double ANGLE_ERROR_TOLERANCE = 1;
-  private static final double ANGULAR_SPEED_ERROR_TOLERANCE = 3;
+  private static final double ANGLE_ERROR_TOLERANCE_DEGREES = 1;
+  private static final double ANGULAR_SPEED_ERROR_TOLERANCE_DEGREES_PER_SECOND = 1;
 
   private static final double ANGULAR_MAX_SPEED_DEGREES_PER_SECOND = 30;
   private static final double ANGULAR_MAX_ACCELERATION_DEGREES_PER_SECOND = 50;
@@ -40,9 +40,6 @@ public class SeekTarget extends CommandBase {
   private Limelight camera;
 
   private int fiducialId;
-
-  private double targetArea;
-  private double targetAngle;
 
   private ProfiledPIDController targetAreaController = new ProfiledPIDController(
     TARGET_AREA_CONTROLLER_P,
@@ -74,10 +71,7 @@ public class SeekTarget extends CommandBase {
     targetAngleController.setGoal(0.0);
 
     targetAreaController.setTolerance(TARGET_AREA_ERROR_TOLERANCE, LINEAR_SPEED_ERROR_TOLERANCE);
-    targetAngleController.setTolerance(ANGLE_ERROR_TOLERANCE, ANGULAR_SPEED_ERROR_TOLERANCE);
-
-    targetArea = goalArea;
-    targetAngle = 0.0;
+    targetAngleController.setTolerance(ANGLE_ERROR_TOLERANCE_DEGREES, ANGULAR_SPEED_ERROR_TOLERANCE_DEGREES_PER_SECOND);
   }
 
   // Called when the command is initially scheduled.
@@ -87,37 +81,39 @@ public class SeekTarget extends CommandBase {
   // Called every time the scheduler runs while the command is scheduled.
   @Override
   public void execute() {
-    double correctingForwardMovement, correctingTurningMovement;
-
-    Limelight.Result currentResult = null;
+    Limelight.Result currentResult;
     try {
       currentResult = camera.getLatestResult();
     } catch (IOException e) {
       e.printStackTrace();
       drivetrain.stop();
+      return;
     }
 
-    if (currentResult != null) {
-      try {
-        Limelight.Result.Fiducial fiducial = currentResult.getFiducialWithId(fiducialId);
-        targetArea = fiducial.getAreaOfImageConsumed();
-        targetAngle = -Units.degreesToRadians(fiducial.getAngleInCameraView().getZ());
-        if (!targetAreaController.atGoal()) {
-          correctingForwardMovement = targetAreaController.calculate(targetArea);
-        } else {
-          correctingForwardMovement = 0;
-        }
-        if (!targetAngleController.atGoal()) {
-          correctingTurningMovement = targetAngleController.calculate(targetAngle);
-        } else {
-          correctingTurningMovement = 0;
-        }
-
-        drivetrain.driveArcadeStyle(correctingForwardMovement, correctingTurningMovement);
-      } catch (FiducialNotDetectedException e) {
-        drivetrain.stop();
-      }
+    Limelight.Result.Fiducial fiducial;
+    try {
+      fiducial = currentResult.getFiducialWithId(fiducialId);
+    } catch (FiducialNotDetectedException e) {
+      drivetrain.stop();
+      return;
     }
+
+    double targetArea = fiducial.getAreaOfImageConsumed();
+    double targetAngle = -Units.degreesToRadians(fiducial.getAngleInCameraView().getZ());
+
+    double correctingForwardMovement, correctingTurningMovement;
+    if (!targetAreaController.atGoal()) {
+      correctingForwardMovement = targetAreaController.calculate(targetArea);
+    } else {
+      correctingForwardMovement = 0;
+    }
+    if (!targetAngleController.atGoal()) {
+      correctingTurningMovement = targetAngleController.calculate(targetAngle);
+    } else {
+      correctingTurningMovement = 0;
+    }
+
+    drivetrain.driveArcadeStyle(correctingForwardMovement, correctingTurningMovement);
   }
 
   // Called once the command ends or is interrupted.
