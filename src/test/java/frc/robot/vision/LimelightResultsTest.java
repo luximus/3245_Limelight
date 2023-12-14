@@ -75,6 +75,21 @@ public class LimelightResultsTest {
   }
 
   @Test
+  void fiducialArrayHasSpecificTargetWhenExpected() throws JsonProcessingException {
+    Limelight.Result result = Limelight.Result.createFromJson(two3dTargetsJsonSample);
+
+    assertTrue(result.hasFiducial(0));
+    assertTrue(result.hasFiducial(1));
+  }
+
+  @Test
+  void fiducialArrayDoesNotHaveSpecificTargetWhenExpected() throws JsonProcessingException {
+    Limelight.Result result = Limelight.Result.createFromJson(two3dTargetsJsonSample);
+
+    assertFalse(result.hasFiducial(2));
+  }
+
+  @Test
   void gotExpectedPipelineId() throws JsonProcessingException {
     Limelight.Result result = Limelight.Result.createFromJson(one2dTargetJsonSample);
 

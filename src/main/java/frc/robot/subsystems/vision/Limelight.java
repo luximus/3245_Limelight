@@ -513,6 +513,20 @@ public class Limelight {
       throw new FiducialNotDetectedException("Did not detect fiducial with ID " + id);
     }
 
+    /**
+     * Returns true when the result has a specific fiducial in its target list.
+     * @param id The ID of the fiducial to search for.
+     * @return True if the result has the given fiducial, false otherwise.
+     */
+    public boolean hasFiducial(int id) {
+      for (Fiducial fiducial : fiducials) {
+        if (fiducial.getId() == id) {
+          return true;
+        }
+      }
+      return false;
+    }
+
   }
 
   private static final class RawResult {
