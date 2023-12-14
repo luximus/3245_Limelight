@@ -14,6 +14,12 @@ import frc.robot.subsystems.Drivetrain;
 import frc.robot.subsystems.vision.FiducialNotDetectedException;
 import frc.robot.subsystems.vision.Limelight;
 
+/**
+ * Turn to and move towards a given target, keeping a certain distance away.
+ *
+ * <p>This implementation uses areas to approximate distance, so nonstationary targets are
+ * permitted.
+ */
 public class SeekTarget extends CommandBase {
 
   private static final double TARGET_AREA_CONTROLLER_P = 0.001;
