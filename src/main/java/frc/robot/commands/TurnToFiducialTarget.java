@@ -4,95 +4,82 @@
 
 package frc.robot.commands;
 
-import java.util.Optional;
+import java.io.IOException;
 
+import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.math.util.Units;
-import edu.wpi.first.wpilibj2.command.CommandBase;
+import edu.wpi.first.wpilibj2.command.ProfiledPIDCommand;
 import frc.robot.subsystems.Drivetrain;
 import frc.robot.subsystems.vision.FiducialNotDetectedException;
 import frc.robot.subsystems.vision.Limelight;
 
-/**
- * A command that turns the robot towards a target extrapolated from a fiducial. If the fiducial is not seen, the
- * command will wait until it is. The command ends when the robot is facing the target within a given tolerance. If
- * the tolerance is set too small, the command may never end, so it is recommended that this command is run with a
- * Deadline to prevent it from hogging resources from other commands.
- */
-public class TurnToFiducialTarget extends CommandBase {
+public class TurnToFiducialTarget extends ProfiledPIDCommand {
 
-  private Drivetrain drivetrain;
+  private static final double CONTROLLER_P = 0.03;
+  private static final double CONTROLLER_I = 0.0;
+  private static final double CONTROLLER_D = 0.0;
+
+  private static final double CONTROLLER_MAX_VELOCITY_DEGREES_PER_SECOND = 30;
+  private static final double CONTROLLER_MAX_ACCELERATION_DEGREES_PER_SECOND = 50;
+
+  private static final double ANGLE_TOLERANCE_DEGREES = 1;
+  private static final double ANGULAR_VELOCITY_ERROR_TOLERANCE_DEGREES_PER_SECOND = 1;
+
   private Limelight camera;
-  private int fiducialId;
-  private double turnSpeed, tolerance;
+  private int targetFiducialId;
+  private double angleDegrees = 0.0;
 
-  private Optional<Double> angle = Optional.empty();
+  /** Creates a new TurnToFiducialTargetPID. */
+  public TurnToFiducialTarget(Drivetrain drivetrain, Limelight camera, int fiducialId) {
+    super(
+        // The ProfiledPIDController used by the command
+        new ProfiledPIDController(
+            // The PID gains
+            CONTROLLER_P,
+            CONTROLLER_I,
+            CONTROLLER_D,
+            // The motion profile constraints
+            new TrapezoidProfile.Constraints(CONTROLLER_MAX_VELOCITY_DEGREES_PER_SECOND,
+                                             CONTROLLER_MAX_ACCELERATION_DEGREES_PER_SECOND)),
+        // This should return the measurement
+        () -> 0.0,
+        0.0,
+        // This uses the output
+        (output, setpoint) -> {
+          drivetrain.driveArcadeStyle(0, output);
+        },
+        drivetrain);
 
-  /**
-   * Creates a new {@code TurnToFiducialTarget} command.
-   *
-   * @param drivetrain The drivetrain which will be commanded to rotate.
-   * @param camera The camera from which fiducial position data will be collected.
-   * @param fiducialId The ID fiducial specifically being searched for.
-   * @param turnSpeed The speed at which the robot should turn in either direction when correcting angle.
-   * @param tolerance The acceptable deviation from "straight-on" the target, in degrees.
-   * */
-  public TurnToFiducialTarget(Drivetrain drivetrain, Limelight camera, int fiducialId, double turnSpeed, double tolerance) {
-    addRequirements(drivetrain);
-
-    this.drivetrain = drivetrain;
+    this.m_measurement = this::getError;
     this.camera = camera;
+    this.targetFiducialId = fiducialId;
 
-    this.fiducialId = fiducialId;
-    this.turnSpeed = turnSpeed;
-    this.tolerance = tolerance;
+    getController().enableContinuousInput(-180, 180);
+    getController().setTolerance(ANGLE_TOLERANCE_DEGREES, ANGULAR_VELOCITY_ERROR_TOLERANCE_DEGREES_PER_SECOND);
   }
 
-  // Called when the command is initially scheduled.
-  @Override
-  public void initialize() {}
-
-  // Called every time the scheduler runs while the command is scheduled.
-  @Override
-  public void execute() {
+  private double getError() {
     Limelight.Result currentResult = null;
     try {
       currentResult = camera.getLatestResult();
-    } catch (Exception e) {
+    } catch (IOException e) {
       e.printStackTrace();
     }
 
-    if (currentResult == null) {
-      angle = Optional.empty();
-      drivetrain.stop();
-    } else {
+    if (currentResult != null) {
       try {
-        Limelight.Result.Fiducial fiducial = currentResult.getFiducialWithId(fiducialId);
-        double correctionAngle = Units.radiansToDegrees(-fiducial.getAngleInCameraView().getZ());
-        angle = Optional.of(-correctionAngle);
-
-        if (Math.abs(correctionAngle) >= tolerance) {
-          if (correctionAngle > 0) {
-            drivetrain.driveArcadeStyle(0, turnSpeed);
-          } else {
-            drivetrain.driveArcadeStyle(0, -turnSpeed);
-          }
-        }
-      } catch (FiducialNotDetectedException e) {
-        drivetrain.stop();
-        angle = Optional.empty();
-      }
+        Limelight.Result.Fiducial fiducial = currentResult.getFiducialWithId(targetFiducialId);
+        angleDegrees = -Units.radiansToDegrees(fiducial.getAngleInCameraView().getZ());
+      } catch (FiducialNotDetectedException e) {}
     }
-  }
 
-  // Called once the command ends or is interrupted.
-  @Override
-  public void end(boolean interrupted) {
-    drivetrain.stop();
+    return angleDegrees;
   }
 
   // Returns true when the command should end.
   @Override
   public boolean isFinished() {
-    return false;
+    return getController().atGoal();
   }
 }
