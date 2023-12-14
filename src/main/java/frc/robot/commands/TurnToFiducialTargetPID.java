@@ -16,12 +16,12 @@ import frc.robot.subsystems.vision.Limelight;
 
 public class TurnToFiducialTargetPID extends ProfiledPIDCommand {
 
-  private static final double CONTROLLER_P = 0.0;
+  private static final double CONTROLLER_P = 0.03;
   private static final double CONTROLLER_I = 0.0;
   private static final double CONTROLLER_D = 0.0;
 
-  private static final double CONTROLLER_MAX_VELOCITY_DEGREES_PER_SECOND = 45;
-  private static final double CONTROLLER_MAX_ACCELERATION_DEGREES_PER_SECOND = 90;
+  private static final double CONTROLLER_MAX_VELOCITY_DEGREES_PER_SECOND = 30;
+  private static final double CONTROLLER_MAX_ACCELERATION_DEGREES_PER_SECOND = 50;
 
   private static final double ANGLE_TOLERANCE_DEGREES = 1;
   private static final double ANGULAR_VELOCITY_ERROR_TOLERANCE_DEGREES_PER_SECOND = 1;
