@@ -9,6 +9,7 @@ import java.io.IOException;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.math.util.Units;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.CommandBase;
 import frc.robot.subsystems.Drivetrain;
 import frc.robot.subsystems.vision.FiducialNotDetectedException;
@@ -93,6 +94,9 @@ public class SeekTarget extends CommandBase {
     } catch (IOException e) {
       e.printStackTrace();
       drivetrain.stop();
+      // TODO: For debugging purposes only, please remove later
+      SmartDashboard.putNumber("Correcting forward movement", 0);
+      SmartDashboard.putNumber("Correcting turning movement", 0);
       return;
     }
 
@@ -101,6 +105,9 @@ public class SeekTarget extends CommandBase {
       fiducial = currentResult.getFiducialWithId(fiducialId);
     } catch (FiducialNotDetectedException e) {
       drivetrain.stop();
+      // TODO: For debugging purposes only, please remove later
+      SmartDashboard.putNumber("Correcting forward movement", 0);
+      SmartDashboard.putNumber("Correcting turning movement", 0);
       return;
     }
 
@@ -119,6 +126,9 @@ public class SeekTarget extends CommandBase {
       correctingTurningMovement = 0;
     }
 
+    // TODO: For debugging purposes only, please remove later
+    SmartDashboard.putNumber("Correcting forward movement", correctingForwardMovement);
+    SmartDashboard.putNumber("Correcting turning movement", correctingTurningMovement);
     drivetrain.driveArcadeStyle(correctingForwardMovement, correctingTurningMovement);
   }
 
