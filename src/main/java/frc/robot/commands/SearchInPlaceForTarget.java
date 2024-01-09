@@ -6,14 +6,14 @@ package frc.robot.commands;
 
 import java.io.IOException;
 
-import edu.wpi.first.wpilibj2.command.CommandBase;
+import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.Drivetrain;
 import frc.robot.subsystems.vision.Limelight;
 
 /**
  * Turn in place until the requested fiducial is found.
  */
-public class SearchInPlaceForTarget extends CommandBase {
+public class SearchInPlaceForTarget extends Command {
 
   private Drivetrain drivetrain;
   private Limelight camera;
